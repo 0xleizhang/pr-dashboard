@@ -71,7 +71,8 @@ export function buildSearchQuery({ user, org, scope, days = 7, qualifier, now = 
 
 const PR_FIELDS = `
   ... on PullRequest {
-    number title url createdAt updatedAt isDraft state reviewDecision
+    id number title url createdAt updatedAt isDraft state reviewDecision
+    author { login }
     repository { nameWithOwner }
     comments(last: 1) { totalCount nodes { author { login } bodyText createdAt } }
     reviews { totalCount }
@@ -135,12 +136,14 @@ export function parseGraphQLResponse(json) {
 
   const prs = nodes('main').filter(n => n.repository).map(n => ({
     key: prKey(n),
+    id: n.id,
     number: n.number,
     title: n.title,
     url: n.url,
     repo: n.repository.nameWithOwner,
     createdAt: n.createdAt,
     updatedAt: n.updatedAt,
+    author: n.author?.login ?? 'unknown',
     isDraft: n.isDraft,
     state: n.state,
     review: mapReviewStatus(n),

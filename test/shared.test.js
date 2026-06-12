@@ -178,6 +178,28 @@ test('parseGraphQLResponse drops main node with repository: null and does not th
   assert.equal(prs[0].number, 1);
 });
 
+test('parseGraphQLResponse includes author login', () => {
+  const json = {
+    data: {
+      main: { nodes: [{
+        number: 42, title: 'My PR', url: 'http://x/42',
+        createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-06-01T00:00:00Z',
+        isDraft: false, state: 'OPEN', reviewDecision: null,
+        author: { login: 'alice' },
+        repository: { nameWithOwner: 'ACME/web' },
+        comments: { totalCount: 0, nodes: [] },
+        reviews: { totalCount: 0 },
+        reviewThreads: { nodes: [] },
+        commits: { nodes: [{ commit: { statusCheckRollup: null } }] },
+      }]},
+      byAuthor: { nodes: [] }, byAssignee: { nodes: [] },
+      byMention: { nodes: [] }, byCommenter: { nodes: [] },
+    },
+  };
+  const prs = parseGraphQLResponse(json);
+  assert.equal(prs[0].author, 'alice');
+});
+
 test('mergeLabels attaches correct label sets to each PR', () => {
   const prs = [{ key: 'a#1' }, { key: 'a#2' }];
   const labelSets = {
