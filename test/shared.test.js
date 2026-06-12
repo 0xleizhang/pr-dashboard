@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapReviewStatus, mapCIStatus, isNewActivity, daysAgoISO, buildSearchQuery, buildGraphQLQuery, parseGraphQLResponse } from '../public/shared.js';
+import { mapReviewStatus, mapCIStatus, isNewActivity, daysAgoISO, buildSearchQuery, buildGraphQLQuery, parseGraphQLResponse, mergeLabels } from '../public/shared.js';
 
 test('mapReviewStatus: approved', () => {
   assert.equal(mapReviewStatus({ reviewDecision: 'APPROVED' }), 'approved');
@@ -112,4 +112,35 @@ test('parseGraphQLResponse tolerates null nodes', () => {
   const json = { data: { main: { nodes: [null] }, byAuthor: { nodes: [] },
     byAssignee: { nodes: [] }, byMention: { nodes: [] }, byCommenter: { nodes: [] } } };
   assert.deepEqual(parseGraphQLResponse(json), []);
+});
+
+test('parseGraphQLResponse drops main node with repository: null and does not throw', () => {
+  const json = {
+    data: {
+      main: { nodes: [
+        { number: 1, title: 'Valid', url: 'http://x/1', updatedAt: '2026-06-12T00:00:00Z',
+          isDraft: false, state: 'OPEN', reviewDecision: null,
+          repository: { nameWithOwner: 'ACME/web' },
+          comments: { totalCount: 0 }, reviews: { totalCount: 0 },
+          commits: { nodes: [] } },
+        { number: 9, repository: null },
+      ]},
+      byAuthor: { nodes: [] }, byAssignee: { nodes: [] },
+      byMention: { nodes: [] }, byCommenter: { nodes: [] },
+    },
+  };
+  const prs = parseGraphQLResponse(json);
+  assert.equal(prs.length, 1);
+  assert.equal(prs[0].number, 1);
+});
+
+test('mergeLabels attaches correct label sets to each PR', () => {
+  const prs = [{ key: 'a#1' }, { key: 'a#2' }];
+  const labelSets = {
+    author:    new Set(['a#1']),
+    commenter: new Set(['a#1', 'a#2']),
+  };
+  const result = mergeLabels(prs, labelSets);
+  assert.deepEqual(result.find(p => p.key === 'a#1').labels, ['author', 'commenter']);
+  assert.deepEqual(result.find(p => p.key === 'a#2').labels, ['commenter']);
 });

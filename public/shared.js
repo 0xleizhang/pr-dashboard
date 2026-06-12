@@ -28,6 +28,11 @@ export function daysAgoISO(days, now = new Date()) {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * NOTE: `user` and `org` must be trusted, validated identifiers sourced from
+ * server config — not raw HTTP input — because they are interpolated directly
+ * into the search query string and could otherwise inject extra qualifiers.
+ */
 export function buildSearchQuery({ user, org, scope, days = 7, qualifier, now = new Date() }) {
   const parts = ['is:pr', `${qualifier}:${user}`, `org:${org}`];
   if (scope === 'open') parts.push('is:open');
@@ -76,7 +81,7 @@ export function parseGraphQLResponse(json) {
   const data = json.data || {};
   const nodes = (alias) => (data[alias]?.nodes || []).filter(n => n && n.number);
 
-  const prs = nodes('main').map(n => ({
+  const prs = nodes('main').filter(n => n.repository).map(n => ({
     key: prKey(n),
     number: n.number,
     title: n.title,
