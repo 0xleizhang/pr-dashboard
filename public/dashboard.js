@@ -152,6 +152,39 @@ function authorInfo(pr) {
   return parts.length ? `<div class="comment">${parts.join(' · ')}</div>` : '';
 }
 
+const reviewDialog = document.getElementById('review-dialog');
+const reviewDialogTitle = document.getElementById('review-dialog-title');
+const reviewDialogContent = document.getElementById('review-dialog-content');
+document.getElementById('review-dialog-close').addEventListener('click', () => reviewDialog.close());
+reviewDialog.addEventListener('click', (e) => { if (e.target === reviewDialog) reviewDialog.close(); });
+
+function showReviewDialog(pr) {
+  reviewDialogTitle.textContent = `#${pr.number} ${pr.title}`;
+  const { reviewers, comments } = pr.reviewDetail;
+  let html = '';
+  if (reviewers.length) {
+    html += '<h3>Reviews</h3><ul>';
+    for (const r of reviewers) {
+      html += `<li><strong>${escapeHtml(r.login)}</strong> — ${r.label}`;
+      if (r.body.trim()) html += `<div class="popup-review-body">${escapeHtml(r.body.trim().slice(0, 200))}</div>`;
+      html += '</li>';
+    }
+    html += '</ul>';
+  } else {
+    html += '<p class="muted" style="font-size:.85rem">No reviews yet.</p>';
+  }
+  if (comments.length) {
+    html += '<h3>Comments</h3><ul>';
+    for (const c of comments) {
+      const snip = c.body.replace(/\s+/g, ' ').trim();
+      html += `<li><strong>@${escapeHtml(c.author)}</strong>: ${escapeHtml(snip.slice(0, 200))}${snip.length > 200 ? '…' : ''}</li>`;
+    }
+    html += '</ul>';
+  }
+  reviewDialogContent.innerHTML = html;
+  reviewDialog.showModal();
+}
+
 function render() {
   const prs = visiblePrs();
   const seen = loadSeen();
@@ -165,10 +198,10 @@ function render() {
     tr.innerHTML = `
       <td>${isNew ? '<span class="dot new" title="new activity"></span>' : ''}</td>
       <td><span class="state state-${state}">${STATE[state]}</span></td>
-      <td class="td-number">${pr.number}</td>
+      <td class="td-number"><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener">${pr.number}</a></td>
       <td class="td-author">${escapeHtml(pr.author)}</td>
       <td>${pr.labels.map(l => `<span class="tag">${PARTICIPATION[l]}</span>`).join('')}</td>
-      <td class="review-${pr.review}">${REVIEW[pr.review]}</td>
+      <td class="td-review review-${pr.review}">${REVIEW[pr.review]}</td>
       <td class="ci-${pr.ci}">${CI[pr.ci]}</td>
       <td class="td-time">${formatTime(pr.createdAt)}</td>
       <td class="td-time">${formatTime(pr.updatedAt)}</td>
@@ -177,13 +210,13 @@ function render() {
         <div class="repo">${escapeHtml(pr.repo)}</div>
         ${pr.labels.includes('author') ? authorInfo(pr) : ''}
       </td>`;
-    tr.addEventListener('click', () => {
+    tr.querySelector('.td-number a').addEventListener('click', () => {
       const s = loadSeen();
       s[pr.key] = pr.updatedAt;
       saveSeen(s);
       tr.querySelector('.dot')?.remove();
-      window.open(pr.url, '_blank', 'noopener');
     });
+    tr.querySelector('.td-review').addEventListener('click', () => showReviewDialog(pr));
     els.rows.appendChild(tr);
   }
 }

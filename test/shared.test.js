@@ -8,13 +8,16 @@ test('mapReviewStatus: approved', () => {
 test('mapReviewStatus: changes requested', () => {
   assert.equal(mapReviewStatus({ reviewDecision: 'CHANGES_REQUESTED' }), 'changes_requested');
 });
-test('mapReviewStatus: commented when reviews or comments exist', () => {
-  assert.equal(mapReviewStatus({ reviewDecision: null, reviews: { totalCount: 2 }, comments: { totalCount: 0 } }), 'commented');
-  assert.equal(mapReviewStatus({ reviewDecision: null, reviews: { totalCount: 0 }, comments: { totalCount: 3 } }), 'commented');
+test('mapReviewStatus: commented when human reviews or comments exist', () => {
+  assert.equal(mapReviewStatus({ reviewDecision: null, reviews: { nodes: [{ author: { login: 'alice' }, state: 'COMMENTED' }] }, comments: { nodes: [] } }), 'commented');
+  assert.equal(mapReviewStatus({ reviewDecision: null, reviews: { nodes: [] }, comments: { nodes: [{ author: { login: 'bob' } }] } }), 'commented');
+});
+test('mapReviewStatus: none when only bot activity', () => {
+  assert.equal(mapReviewStatus({ reviewDecision: null, reviews: { nodes: [{ author: { login: 'dependabot[bot]' }, state: 'COMMENTED' }] }, comments: { nodes: [{ author: { login: 'github-actions[bot]' } }] } }), 'none');
+  assert.equal(mapReviewStatus({}), 'none');
 });
 test('mapReviewStatus: none when no review activity', () => {
-  assert.equal(mapReviewStatus({ reviewDecision: null, reviews: { totalCount: 0 }, comments: { totalCount: 0 } }), 'none');
-  assert.equal(mapReviewStatus({}), 'none');
+  assert.equal(mapReviewStatus({ reviewDecision: null, reviews: { nodes: [] }, comments: { nodes: [] } }), 'none');
 });
 
 const rollup = (...nodes) => ({ contexts: { nodes } });
@@ -113,7 +116,7 @@ test('parseGraphQLResponse normalizes PRs and merges participation labels', () =
           isDraft: false, state: 'OPEN', reviewDecision: 'APPROVED',
           repository: { nameWithOwner: 'ACME/web' },
           comments: { totalCount: 3, nodes: [{ author: { login: 'reviewer1' }, bodyText: 'please fix', createdAt: '2026-06-12T09:00:00Z' }] },
-          reviews: { totalCount: 1 },
+          reviews: { totalCount: 1, nodes: [{ author: { login: 'reviewer1' }, state: 'APPROVED', body: '' }] },
           reviewThreads: { nodes: [{ isResolved: false }, { isResolved: true }, { isResolved: false }] },
           commits: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: [
             { __typename: 'CheckRun', name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS' },
@@ -122,7 +125,7 @@ test('parseGraphQLResponse normalizes PRs and merges participation labels', () =
         { number: 2, title: 'Add feature', url: 'http://x/2', updatedAt: '2026-06-11T00:00:00Z',
           isDraft: true, state: 'OPEN', reviewDecision: null,
           repository: { nameWithOwner: 'ACME/api' },
-          comments: { totalCount: 0 }, reviews: { totalCount: 0 },
+          comments: { totalCount: 0, nodes: [] }, reviews: { totalCount: 0, nodes: [] },
           commits: { nodes: [] } },
       ]},
       byAuthor:    { nodes: [{ number: 1, repository: { nameWithOwner: 'ACME/web' } }] },
@@ -165,7 +168,7 @@ test('parseGraphQLResponse drops main node with repository: null and does not th
         { number: 1, title: 'Valid', url: 'http://x/1', updatedAt: '2026-06-12T00:00:00Z',
           isDraft: false, state: 'OPEN', reviewDecision: null,
           repository: { nameWithOwner: 'ACME/web' },
-          comments: { totalCount: 0 }, reviews: { totalCount: 0 },
+          comments: { totalCount: 0, nodes: [] }, reviews: { totalCount: 0, nodes: [] },
           commits: { nodes: [] } },
         { number: 9, repository: null },
       ]},
@@ -188,7 +191,7 @@ test('parseGraphQLResponse includes author login', () => {
         author: { login: 'alice' },
         repository: { nameWithOwner: 'ACME/web' },
         comments: { totalCount: 0, nodes: [] },
-        reviews: { totalCount: 0 },
+        reviews: { totalCount: 0, nodes: [] },
         reviewThreads: { nodes: [] },
         commits: { nodes: [{ commit: { statusCheckRollup: null } }] },
       }]},

@@ -1,9 +1,13 @@
+function isBot(login) {
+  return (login ?? '').endsWith('[bot]');
+}
+
 export function mapReviewStatus(pr) {
   if (pr.reviewDecision === 'APPROVED') return 'approved';
   if (pr.reviewDecision === 'CHANGES_REQUESTED') return 'changes_requested';
-  const reviews = pr.reviews?.totalCount ?? 0;
-  const comments = pr.comments?.totalCount ?? 0;
-  if (reviews > 0 || comments > 0) return 'commented';
+  const humanReviews = (pr.reviews?.nodes || []).filter(r => !isBot(r.author?.login));
+  const humanComments = (pr.comments?.nodes || []).filter(c => !isBot(c.author?.login));
+  if (humanReviews.length > 0 || humanComments.length > 0) return 'commented';
   return 'none';
 }
 
@@ -74,8 +78,8 @@ const PR_FIELDS = `
     id number title url createdAt updatedAt isDraft state reviewDecision
     author { login }
     repository { nameWithOwner }
-    comments(last: 1) { totalCount nodes { author { login } bodyText createdAt } }
-    reviews { totalCount }
+    comments(last: 10) { totalCount nodes { author { login } bodyText createdAt } }
+    reviews(last: 20) { totalCount nodes { author { login } state body submittedAt } }
     reviewThreads(first: 100) { nodes { isResolved } }
     commits(last: 1) { nodes { commit { statusCheckRollup {
       contexts(first: 100) {
@@ -107,13 +111,25 @@ function prKey(node) {
 }
 
 function latestCommentOf(node) {
-  const c = node.comments?.nodes?.[0];
+  const humanComments = (node.comments?.nodes ?? []).filter(c => !isBot(c.author?.login));
+  const c = humanComments[humanComments.length - 1];
   if (!c) return null;
   return {
     author: c.author?.login ?? 'unknown',
     body: c.bodyText ?? '',
     createdAt: c.createdAt ?? null,
   };
+}
+
+function reviewDetailsOf(node) {
+  const REVIEW_STATE = { APPROVED: '✅ Approved', CHANGES_REQUESTED: '❌ Changes Requested', COMMENTED: '💬 Commented', DISMISSED: '⚫ Dismissed' };
+  const reviewers = (node.reviews?.nodes ?? [])
+    .filter(r => !isBot(r.author?.login) && r.state !== 'PENDING')
+    .map(r => ({ login: r.author?.login ?? 'unknown', state: r.state, label: REVIEW_STATE[r.state] ?? r.state, body: r.body ?? '' }));
+  const comments = (node.comments?.nodes ?? [])
+    .filter(c => !isBot(c.author?.login))
+    .map(c => ({ author: c.author?.login ?? 'unknown', body: c.bodyText ?? '', createdAt: c.createdAt }));
+  return { reviewers, comments };
 }
 
 function unresolvedThreadCount(node) {
@@ -147,6 +163,7 @@ export function parseGraphQLResponse(json) {
     isDraft: n.isDraft,
     state: n.state,
     review: mapReviewStatus(n),
+    reviewDetail: reviewDetailsOf(n),
     ci: mapCIStatus(n.commits?.nodes?.[0]?.commit?.statusCheckRollup),
     latestComment: latestCommentOf(n),
     unresolved: unresolvedThreadCount(n),

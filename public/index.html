@@ -48,6 +48,19 @@
     .th-dropdown label:hover { background: #f6f8fa; }
     .td-time { font-size: .75rem; color: #656d76; white-space: nowrap; }
     .td-author { font-size: .8rem; }
+    .td-number a { color: #0969da; text-decoration: none; }
+    .td-number a:hover { text-decoration: underline; }
+    tr.pr { cursor: default; }
+    .td-review { cursor: pointer; }
+    .td-review:hover { text-decoration: underline; }
+    dialog { border: 1px solid #d0d7de; border-radius: 8px; padding: 1.2rem 1.4rem; min-width: 320px; max-width: 520px; box-shadow: 0 8px 24px rgba(0,0,0,.15); }
+    dialog::backdrop { background: rgba(0,0,0,.3); }
+    #review-dialog h2 { margin: 0 0 1rem; font-size: .95rem; }
+    #review-dialog h3 { margin: .8rem 0 .3rem; font-size: .8rem; color: #656d76; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    #review-dialog ul { margin: 0; padding-left: 1rem; }
+    #review-dialog li { margin-bottom: .4rem; font-size: .85rem; }
+    .popup-review-body { margin-top: .15rem; font-size: .78rem; color: #656d76; }
+    #review-dialog-close { float: right; background: none; border: none; font-size: 1rem; cursor: pointer; color: #656d76; padding: 0; line-height: 1; }
   </style>
 </head>
 <body>
@@ -100,6 +113,13 @@
     <tbody id="rows"></tbody>
   </table>
   <p id="empty" class="muted" style="display:none">No PRs found.</p>
+
+  <dialog id="review-dialog">
+    <button id="review-dialog-close" title="Close">✕</button>
+    <h2 id="review-dialog-title"></h2>
+    <div id="review-dialog-content"></div>
+  </dialog>
+
   <script type="module" src="./dashboard.js"></script>
 </body>
 </html>

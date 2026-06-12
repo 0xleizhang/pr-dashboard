@@ -12,7 +12,7 @@ const okBody = {
       { number: 1, title: 'T', url: 'http://x/1', updatedAt: '2026-06-12T00:00:00Z',
         isDraft: false, state: 'OPEN', reviewDecision: 'APPROVED',
         repository: { nameWithOwner: 'ACME/web' },
-        comments: { totalCount: 0 }, reviews: { totalCount: 1 },
+        comments: { totalCount: 0, nodes: [] }, reviews: { totalCount: 1, nodes: [{ author: { login: 'alice' }, state: 'APPROVED', body: '' }] },
         commits: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: [
           { __typename: 'CheckRun', name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS' },
         ] } } } }] } },
