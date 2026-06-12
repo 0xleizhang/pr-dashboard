@@ -55,22 +55,6 @@
     <h1>PR Dashboard</h1>
     <span id="subtitle" class="muted"></span>
     <div class="controls">
-      <select id="type">
-        <option value="all">All types</option>
-        <option value="author">Author</option>
-        <option value="assignee">Assignee</option>
-        <option value="mention">Mention</option>
-        <option value="commenter">Commenter</option>
-      </select>
-      <select id="scope">
-        <option value="open">Open only</option>
-        <option value="all">Open + recently closed</option>
-      </select>
-      <select id="sort">
-        <option value="updated">Updated ↓</option>
-        <option value="created">Created ↓</option>
-        <option value="number">PR # ↓</option>
-      </select>
       <button id="notifyToggle">🔔 通知</button>
       <button id="markRead">Mark all read</button>
       <button id="refresh">Refresh</button>
@@ -81,10 +65,31 @@
     <thead>
       <tr>
         <th></th>
-        <th id="th-state">State <span class="th-arrow">▾</span></th>
+        <th>
+          <div class="th-filter-wrap">
+            State <span class="th-arrow" id="state-arrow">▾</span>
+            <div class="th-dropdown" id="state-dropdown">
+              <label><input type="checkbox" value="open" checked> Open</label>
+              <label><input type="checkbox" value="draft"> Draft</label>
+              <label><input type="checkbox" value="closed"> Closed</label>
+              <label><input type="checkbox" value="merged"> Merged</label>
+            </div>
+          </div>
+        </th>
         <th id="th-number" class="sortable">PR# <span class="sort-dir"></span></th>
         <th>Author</th>
-        <th id="th-participation">Participation <span class="th-arrow">▾</span></th>
+        <th>
+          <div class="th-filter-wrap">
+            Participation <span class="th-arrow" id="participation-arrow">▾</span>
+            <div class="th-dropdown" id="participation-dropdown">
+              <label><input type="radio" name="ptype" value="all" checked> All</label>
+              <label><input type="radio" name="ptype" value="author"> Author</label>
+              <label><input type="radio" name="ptype" value="assignee"> Assignee</label>
+              <label><input type="radio" name="ptype" value="mention"> Mention</label>
+              <label><input type="radio" name="ptype" value="commenter"> Commenter</label>
+            </div>
+          </div>
+        </th>
         <th>Review</th>
         <th>CI</th>
         <th id="th-created" class="sortable">Created <span class="sort-dir"></span></th>

@@ -5,9 +5,6 @@ const els = {
   rows: document.getElementById('rows'),
   error: document.getElementById('error'),
   empty: document.getElementById('empty'),
-  scope: document.getElementById('scope'),
-  type: document.getElementById('type'),
-  sort: document.getElementById('sort'),
   refresh: document.getElementById('refresh'),
   markRead: document.getElementById('markRead'),
   subtitle: document.getElementById('subtitle'),
@@ -75,6 +72,21 @@ for (const [id, col] of Object.entries(sortCols)) {
 
 updateSortUI();
 
+function setupDropdown(arrowId, dropdownId) {
+  const arrow = document.getElementById(arrowId);
+  const menu = document.getElementById(dropdownId);
+  arrow.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!menu.contains(e.target)) menu.classList.remove('open');
+  });
+}
+
+setupDropdown('state-arrow', 'state-dropdown');
+setupDropdown('participation-arrow', 'participation-dropdown');
+
 function formatTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -88,6 +100,32 @@ function formatTime(iso) {
 // Stubs reassigned in Task 6
 let activeStateFilter = () => [];
 let activeTypeFilter = () => 'all';
+
+activeStateFilter = () => {
+  const checked = [...document.querySelectorAll('#state-dropdown input:checked')];
+  return checked.map(i => i.value);
+};
+
+activeTypeFilter = () => {
+  const checked = document.querySelector('#participation-dropdown input:checked');
+  return checked?.value ?? 'all';
+};
+
+let currentScope = 'open';
+
+document.getElementById('state-dropdown').addEventListener('change', () => {
+  const selected = activeStateFilter();
+  const needAll = selected.some(s => s === 'closed' || s === 'merged');
+  const newScope = needAll ? 'all' : 'open';
+  if (newScope !== currentScope) {
+    currentScope = newScope;
+    load();
+  } else {
+    render();
+  }
+});
+
+document.getElementById('participation-dropdown').addEventListener('change', render);
 
 function visiblePrs() {
   const stateFilter = activeStateFilter();
@@ -156,7 +194,7 @@ async function load() {
   els.error.style.display = 'none';
   els.rows.innerHTML = '<tr><td colspan="10" class="muted">Loading…</td></tr>';
   try {
-    const res = await fetch(`/api/prs?scope=${els.scope.value}`);
+    const res = await fetch(`/api/prs?scope=${currentScope}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     els.subtitle.textContent = `${data.user} @ ${data.org} · ${data.prs.length} PRs`;
@@ -170,8 +208,6 @@ async function load() {
 }
 
 els.refresh.addEventListener('click', load);
-els.scope.addEventListener('change', load);
-els.type.addEventListener('change', render);
 els.markRead.addEventListener('click', () => {
   const seen = loadSeen();
   for (const pr of visiblePrs()) seen[pr.key] = pr.updatedAt;
