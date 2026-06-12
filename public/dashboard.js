@@ -155,6 +155,7 @@ function connectSSE() {
     });
     n.onclick = () => { window.open(d.prUrl, '_blank', 'noopener'); n.close(); };
   });
+  evtSource.addEventListener('error', () => console.warn('[SSE] connection error, browser will retry'));
 }
 
 function disconnectSSE() {
@@ -163,12 +164,14 @@ function disconnectSSE() {
 }
 
 async function enableNotifications() {
+  if (typeof Notification === 'undefined') { applyNotifyUI(); return; }
   const perm = await Notification.requestPermission();
   if (perm === 'granted') {
     localStorage.setItem(NOTIFY_KEY, 'on');
     connectSSE();
   } else {
     localStorage.setItem(NOTIFY_KEY, 'off');
+    disconnectSSE();
   }
   applyNotifyUI();
 }
@@ -185,6 +188,6 @@ notifyToggle.addEventListener('click', () => {
 
 // Connect SSE on load if previously enabled and permission still granted
 applyNotifyUI();
-if (isNotifyOn() && Notification.permission === 'granted') connectSSE();
+if (typeof Notification !== 'undefined' && isNotifyOn() && Notification.permission === 'granted') connectSSE();
 
 load();
