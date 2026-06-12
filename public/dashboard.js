@@ -80,7 +80,7 @@ function setupDropdown(arrowId, dropdownId) {
     menu.classList.toggle('open');
   });
   document.addEventListener('click', (e) => {
-    if (!menu.contains(e.target)) menu.classList.remove('open');
+    if (!menu.contains(e.target) && !arrow.contains(e.target)) menu.classList.remove('open');
   });
 }
 
