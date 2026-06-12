@@ -6,6 +6,7 @@ const els = {
   error: document.getElementById('error'),
   empty: document.getElementById('empty'),
   scope: document.getElementById('scope'),
+  type: document.getElementById('type'),
   refresh: document.getElementById('refresh'),
   markRead: document.getElementById('markRead'),
   subtitle: document.getElementById('subtitle'),
@@ -15,7 +16,7 @@ const PARTICIPATION = { author: '🖊 author', assignee: '👤 assignee', mentio
 const REVIEW = { approved: '✅ approved', changes_requested: '❌ changes', commented: '💬 commented', none: '⚪ none' };
 const CI = { pass: '🟢 pass', fail: '🔴 fail', pending: '🟡 pending', unknown: '⚪ —' };
 
-let current = [];
+let allPrs = [];
 
 function loadSeen() {
   try { return JSON.parse(localStorage.getItem(SEEN_KEY)) || {}; }
@@ -25,8 +26,27 @@ function saveSeen(seen) {
   localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
 }
 
-function render(prs) {
-  current = prs;
+function visiblePrs() {
+  const type = els.type.value;
+  if (type === 'all') return allPrs;
+  return allPrs.filter(pr => pr.labels.includes(type));
+}
+
+function authorInfo(pr) {
+  const parts = [];
+  if (pr.unresolved > 0) {
+    parts.push(`<span class="warn">⚠ ${pr.unresolved} unresolved</span>`);
+  }
+  if (pr.latestComment) {
+    const body = pr.latestComment.body.replace(/\s+/g, ' ').trim();
+    const snip = body.slice(0, 80);
+    parts.push(`<span class="muted">💬 @${escapeHtml(pr.latestComment.author)}: ${escapeHtml(snip)}${body.length > 80 ? '…' : ''}</span>`);
+  }
+  return parts.length ? `<div class="comment">${parts.join(' · ')}</div>` : '';
+}
+
+function render() {
+  const prs = visiblePrs();
   const seen = loadSeen();
   els.rows.innerHTML = '';
   els.empty.style.display = prs.length ? 'none' : 'block';
@@ -42,6 +62,7 @@ function render(prs) {
       <td>
         <div>${pr.isDraft ? '<span class="tag">draft</span>' : ''}${escapeHtml(pr.title)}</div>
         <div class="repo">${pr.repo}#${pr.number}</div>
+        ${pr.labels.includes('author') ? authorInfo(pr) : ''}
       </td>`;
     tr.addEventListener('click', () => {
       const s = loadSeen();
@@ -66,7 +87,8 @@ async function load() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     els.subtitle.textContent = `${data.user} @ ${data.org} · ${data.prs.length} PRs`;
-    render(data.prs);
+    allPrs = data.prs;
+    render();
   } catch (err) {
     els.rows.innerHTML = '';
     els.error.textContent = 'Failed to load PRs: ' + err.message;
@@ -76,11 +98,12 @@ async function load() {
 
 els.refresh.addEventListener('click', load);
 els.scope.addEventListener('change', load);
+els.type.addEventListener('change', render);
 els.markRead.addEventListener('click', () => {
   const seen = loadSeen();
-  for (const pr of current) seen[pr.key] = pr.updatedAt;
+  for (const pr of visiblePrs()) seen[pr.key] = pr.updatedAt;
   saveSeen(seen);
-  render(current);
+  render();
 });
 
 load();

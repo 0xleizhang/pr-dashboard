@@ -13,7 +13,9 @@ const okBody = {
         isDraft: false, state: 'OPEN', reviewDecision: 'APPROVED',
         repository: { nameWithOwner: 'ACME/web' },
         comments: { totalCount: 0 }, reviews: { totalCount: 1 },
-        commits: { nodes: [{ commit: { statusCheckRollup: { state: 'SUCCESS' } } }] } },
+        commits: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: [
+          { __typename: 'CheckRun', name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS' },
+        ] } } } }] } },
     ]},
     byAuthor: { nodes: [{ number: 1, repository: { nameWithOwner: 'ACME/web' } }] },
     byAssignee: { nodes: [] }, byMention: { nodes: [] }, byCommenter: { nodes: [] },

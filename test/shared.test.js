@@ -17,14 +17,48 @@ test('mapReviewStatus: none when no review activity', () => {
   assert.equal(mapReviewStatus({}), 'none');
 });
 
-test('mapCIStatus mapping', () => {
-  assert.equal(mapCIStatus('SUCCESS'), 'pass');
-  assert.equal(mapCIStatus('FAILURE'), 'fail');
-  assert.equal(mapCIStatus('ERROR'), 'fail');
-  assert.equal(mapCIStatus('PENDING'), 'pending');
-  assert.equal(mapCIStatus('EXPECTED'), 'pending');
+const rollup = (...nodes) => ({ contexts: { nodes } });
+const checkRun = (name, status, conclusion) => ({ __typename: 'CheckRun', name, status, conclusion });
+const statusCtx = (context, state) => ({ __typename: 'StatusContext', context, state });
+
+test('mapCIStatus: unknown when no checks', () => {
   assert.equal(mapCIStatus(null), 'unknown');
   assert.equal(mapCIStatus(undefined), 'unknown');
+  assert.equal(mapCIStatus(rollup()), 'unknown');
+});
+
+test('mapCIStatus: passing CheckRun and StatusContext', () => {
+  assert.equal(mapCIStatus(rollup(checkRun('ci', 'COMPLETED', 'SUCCESS'))), 'pass');
+  assert.equal(mapCIStatus(rollup(checkRun('ci', 'COMPLETED', 'NEUTRAL'))), 'pass');
+  assert.equal(mapCIStatus(rollup(checkRun('ci', 'COMPLETED', 'SKIPPED'))), 'pass');
+  assert.equal(mapCIStatus(rollup(statusCtx('ci/circleci', 'SUCCESS'))), 'pass');
+});
+
+test('mapCIStatus: fail beats pending beats pass when aggregating', () => {
+  assert.equal(mapCIStatus(rollup(
+    checkRun('ci', 'COMPLETED', 'SUCCESS'),
+    checkRun('lint', 'COMPLETED', 'FAILURE'),
+  )), 'fail');
+  assert.equal(mapCIStatus(rollup(
+    checkRun('ci', 'COMPLETED', 'SUCCESS'),
+    checkRun('lint', 'IN_PROGRESS', null),
+  )), 'pending');
+});
+
+test('mapCIStatus: in-progress CheckRun is pending; error StatusContext is fail', () => {
+  assert.equal(mapCIStatus(rollup(checkRun('ci', 'QUEUED', null))), 'pending');
+  assert.equal(mapCIStatus(rollup(statusCtx('ci', 'ERROR'))), 'fail');
+  assert.equal(mapCIStatus(rollup(statusCtx('ci', 'PENDING'))), 'pending');
+});
+
+test('mapCIStatus: excludes owners-files (approval-gated) checks', () => {
+  // owners-files is failing/pending but real CI passed → result should be pass
+  assert.equal(mapCIStatus(rollup(
+    checkRun('ci', 'COMPLETED', 'SUCCESS'),
+    checkRun('owners-files', 'COMPLETED', 'FAILURE'),
+  )), 'pass');
+  // only an owners check present → no real checks left → unknown
+  assert.equal(mapCIStatus(rollup(checkRun('owners-files', 'COMPLETED', 'FAILURE'))), 'unknown');
 });
 
 test('isNewActivity: true when never seen', () => {
@@ -78,8 +112,13 @@ test('parseGraphQLResponse normalizes PRs and merges participation labels', () =
         { number: 1, title: 'Fix bug', url: 'http://x/1', updatedAt: '2026-06-12T00:00:00Z',
           isDraft: false, state: 'OPEN', reviewDecision: 'APPROVED',
           repository: { nameWithOwner: 'ACME/web' },
-          comments: { totalCount: 0 }, reviews: { totalCount: 1 },
-          commits: { nodes: [{ commit: { statusCheckRollup: { state: 'SUCCESS' } } }] } },
+          comments: { totalCount: 3, nodes: [{ author: { login: 'reviewer1' }, bodyText: 'please fix', createdAt: '2026-06-12T09:00:00Z' }] },
+          reviews: { totalCount: 1 },
+          reviewThreads: { nodes: [{ isResolved: false }, { isResolved: true }, { isResolved: false }] },
+          commits: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: [
+            { __typename: 'CheckRun', name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS' },
+            { __typename: 'CheckRun', name: 'owners-files', status: 'COMPLETED', conclusion: 'FAILURE' },
+          ] } } } }] } },
         { number: 2, title: 'Add feature', url: 'http://x/2', updatedAt: '2026-06-11T00:00:00Z',
           isDraft: true, state: 'OPEN', reviewDecision: null,
           repository: { nameWithOwner: 'ACME/api' },
@@ -101,11 +140,15 @@ test('parseGraphQLResponse normalizes PRs and merges participation labels', () =
   assert.equal(pr1.review, 'approved');
   assert.equal(pr1.ci, 'pass');
   assert.deepEqual(pr1.labels.sort(), ['author', 'mention']);
+  assert.deepEqual(pr1.latestComment, { author: 'reviewer1', body: 'please fix', createdAt: '2026-06-12T09:00:00Z' });
+  assert.equal(pr1.unresolved, 2);
 
   const pr2 = prs.find(p => p.number === 2);
   assert.equal(pr2.ci, 'unknown');
   assert.equal(pr2.review, 'none');
   assert.deepEqual(pr2.labels, ['assignee']);
+  assert.equal(pr2.latestComment, null);
+  assert.equal(pr2.unresolved, 0);
 });
 
 test('parseGraphQLResponse tolerates null nodes', () => {

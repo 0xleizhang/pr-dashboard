@@ -7,15 +7,44 @@ export function mapReviewStatus(pr) {
   return 'none';
 }
 
-export function mapCIStatus(rollupState) {
-  switch (rollupState) {
-    case 'SUCCESS': return 'pass';
-    case 'FAILURE':
-    case 'ERROR': return 'fail';
-    case 'PENDING':
-    case 'EXPECTED': return 'pending';
-    default: return 'unknown';
+// Checks whose name contains any of these are ignored when computing CI status:
+// they depend on review approval (e.g. owners-files) and never pass on their own,
+// so they would otherwise mask the real CI result.
+const CI_EXCLUDE = ['owners'];
+
+function checkName(node) {
+  return (node.name ?? node.context ?? '').toLowerCase();
+}
+
+function normalizeCheck(node) {
+  if (node.__typename === 'StatusContext') {
+    switch (node.state) {
+      case 'SUCCESS': return 'pass';
+      case 'FAILURE':
+      case 'ERROR': return 'fail';
+      default: return 'pending';
+    }
   }
+  // CheckRun
+  if (node.status !== 'COMPLETED') return 'pending';
+  switch (node.conclusion) {
+    case 'SUCCESS':
+    case 'NEUTRAL':
+    case 'SKIPPED': return 'pass';
+    default: return 'fail';
+  }
+}
+
+// Aggregate the real CI checks (excluding approval-gated ones) into one status.
+export function mapCIStatus(rollup) {
+  const checks = (rollup?.contexts?.nodes || [])
+    .filter(n => n && !CI_EXCLUDE.some(ex => checkName(n).includes(ex)));
+  if (checks.length === 0) return 'unknown';
+  const states = checks.map(normalizeCheck);
+  if (states.includes('fail')) return 'fail';
+  if (states.includes('pending')) return 'pending';
+  if (states.includes('pass')) return 'pass';
+  return 'unknown';
 }
 
 export function isNewActivity(lastSeen, updatedAt) {
@@ -44,9 +73,18 @@ const PR_FIELDS = `
   ... on PullRequest {
     number title url updatedAt isDraft state reviewDecision
     repository { nameWithOwner }
-    comments { totalCount }
+    comments(last: 1) { totalCount nodes { author { login } bodyText createdAt } }
     reviews { totalCount }
-    commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+    reviewThreads(first: 100) { nodes { isResolved } }
+    commits(last: 1) { nodes { commit { statusCheckRollup {
+      contexts(first: 100) {
+        nodes {
+          __typename
+          ... on CheckRun { name status conclusion }
+          ... on StatusContext { context state }
+        }
+      }
+    } } } }
   }`;
 
 const KEY_FIELDS = `... on PullRequest { number repository { nameWithOwner } }`;
@@ -65,6 +103,20 @@ export function buildGraphQLQuery({ user, org, scope, days = 7, now = new Date()
 
 function prKey(node) {
   return `${node.repository.nameWithOwner}#${node.number}`;
+}
+
+function latestCommentOf(node) {
+  const c = node.comments?.nodes?.[0];
+  if (!c) return null;
+  return {
+    author: c.author?.login ?? 'unknown',
+    body: c.bodyText ?? '',
+    createdAt: c.createdAt ?? null,
+  };
+}
+
+function unresolvedThreadCount(node) {
+  return (node.reviewThreads?.nodes || []).filter(t => t && t.isResolved === false).length;
 }
 
 export function mergeLabels(prs, labelSets) {
@@ -91,7 +143,9 @@ export function parseGraphQLResponse(json) {
     isDraft: n.isDraft,
     state: n.state,
     review: mapReviewStatus(n),
-    ci: mapCIStatus(n.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state),
+    ci: mapCIStatus(n.commits?.nodes?.[0]?.commit?.statusCheckRollup),
+    latestComment: latestCommentOf(n),
+    unresolved: unresolvedThreadCount(n),
   }));
 
   const setOf = (alias) => new Set(nodes(alias).map(prKey));

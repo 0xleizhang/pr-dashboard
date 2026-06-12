@@ -26,6 +26,8 @@
     .ci-pass { color: #1a7f37; }
     .ci-fail { color: #cf222e; }
     .ci-pending { color: #9a6700; }
+    .comment { margin-top: .25rem; font-size: .8rem; }
+    .warn { color: #9a6700; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -33,6 +35,13 @@
     <h1>PR Dashboard</h1>
     <span id="subtitle" class="muted"></span>
     <div class="controls">
+      <select id="type">
+        <option value="all">All types</option>
+        <option value="author">Author</option>
+        <option value="assignee">Assignee</option>
+        <option value="mention">Mention</option>
+        <option value="commenter">Commenter</option>
+      </select>
       <select id="scope">
         <option value="open">Open only</option>
         <option value="all">Open + recently closed</option>
