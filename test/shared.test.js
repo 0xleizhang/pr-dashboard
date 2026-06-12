@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapReviewStatus, mapCIStatus, isNewActivity, daysAgoISO, buildSearchQuery } from '../public/shared.js';
+import { mapReviewStatus, mapCIStatus, isNewActivity, daysAgoISO, buildSearchQuery, buildGraphQLQuery } from '../public/shared.js';
 
 test('mapReviewStatus: approved', () => {
   assert.equal(mapReviewStatus({ reviewDecision: 'APPROVED' }), 'approved');
@@ -57,4 +57,16 @@ test('buildSearchQuery all scope adds updated lookback', () => {
     buildSearchQuery({ user: 'me', org: 'ACME', scope: 'all', days: 7, qualifier: 'author', now: NOW }),
     'is:pr author:me org:ACME updated:>=2026-06-05'
   );
+});
+
+test('buildGraphQLQuery includes all 5 aliased searches and PR fields', () => {
+  const q = buildGraphQLQuery({ user: 'me', org: 'ACME', scope: 'open', now: NOW });
+  for (const alias of ['main:', 'byAuthor:', 'byAssignee:', 'byMention:', 'byCommenter:']) {
+    assert.ok(q.includes(alias), `missing alias ${alias}`);
+  }
+  assert.ok(q.includes('involves:me'), 'main uses involves');
+  assert.ok(q.includes('mentions:me'), 'mention alias uses mentions qualifier');
+  assert.ok(q.includes('reviewDecision'), 'requests reviewDecision');
+  assert.ok(q.includes('statusCheckRollup'), 'requests CI rollup');
+  assert.ok(q.includes('first: 50'), 'paginates at 50');
 });

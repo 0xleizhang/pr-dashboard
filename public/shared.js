@@ -34,3 +34,26 @@ export function buildSearchQuery({ user, org, scope, days = 7, qualifier, now = 
   else parts.push(`updated:>=${daysAgoISO(days, now)}`);
   return parts.join(' ');
 }
+
+const PR_FIELDS = `
+  ... on PullRequest {
+    number title url updatedAt isDraft state reviewDecision
+    repository { nameWithOwner }
+    comments { totalCount }
+    reviews { totalCount }
+    commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+  }`;
+
+const KEY_FIELDS = `... on PullRequest { number repository { nameWithOwner } }`;
+
+export function buildGraphQLQuery({ user, org, scope, days = 7, now = new Date() }) {
+  const search = (qualifier, fields) =>
+    `search(query: ${JSON.stringify(buildSearchQuery({ user, org, scope, days, qualifier, now }))}, type: ISSUE, first: 50) { nodes { ${fields} } }`;
+  return `query {
+    main: ${search('involves', PR_FIELDS)}
+    byAuthor: ${search('author', KEY_FIELDS)}
+    byAssignee: ${search('assignee', KEY_FIELDS)}
+    byMention: ${search('mentions', KEY_FIELDS)}
+    byCommenter: ${search('commenter', KEY_FIELDS)}
+  }`;
+}
