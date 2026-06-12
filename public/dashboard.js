@@ -41,6 +41,16 @@ const SORTERS = {
   number: (a, b) => b.number - a.number,
 };
 
+function formatTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${mm}-${dd} ${hh}:${min}`;
+}
+
 function visiblePrs() {
   const type = els.type.value;
   const filtered = type === 'all' ? allPrs : allPrs.filter(pr => pr.labels.includes(type));
@@ -73,12 +83,16 @@ function render() {
     tr.innerHTML = `
       <td>${isNew ? '<span class="dot new" title="new activity"></span>' : ''}</td>
       <td><span class="state state-${state}">${STATE[state]}</span></td>
+      <td class="td-number">${pr.number}</td>
+      <td class="td-author">${escapeHtml(pr.author)}</td>
       <td>${pr.labels.map(l => `<span class="tag">${PARTICIPATION[l]}</span>`).join('')}</td>
       <td class="review-${pr.review}">${REVIEW[pr.review]}</td>
       <td class="ci-${pr.ci}">${CI[pr.ci]}</td>
+      <td class="td-time">${formatTime(pr.createdAt)}</td>
+      <td class="td-time">${formatTime(pr.updatedAt)}</td>
       <td>
         <div>${escapeHtml(pr.title)}</div>
-        <div class="repo">${pr.repo}#${pr.number}</div>
+        <div class="repo">${pr.repo}</div>
         ${pr.labels.includes('author') ? authorInfo(pr) : ''}
       </td>`;
     tr.addEventListener('click', () => {
@@ -98,7 +112,7 @@ function escapeHtml(s) {
 
 async function load() {
   els.error.style.display = 'none';
-  els.rows.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
+  els.rows.innerHTML = '<tr><td colspan="10" class="muted">Loading…</td></tr>';
   try {
     const res = await fetch(`/api/prs?scope=${els.scope.value}`);
     const data = await res.json();
