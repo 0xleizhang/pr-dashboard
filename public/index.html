@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PR Dashboard</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, system-ui, sans-serif; margin: 0; padding: 1.5rem; color: #1f2328; }
+    header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    h1 { font-size: 1.1rem; margin: 0; }
+    .controls { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
+    button, select { font: inherit; padding: .3rem .6rem; border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; cursor: pointer; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid #eaeef2; }
+    th { font-size: .8rem; color: #656d76; font-weight: 600; }
+    tr.pr { cursor: pointer; }
+    tr.pr:hover { background: #f6f8fa; }
+    .dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; }
+    .new { background: #0969da; }
+    .muted { color: #656d76; }
+    .tag { display: inline-block; padding: 0 .35rem; margin-right: .2rem; border-radius: 4px; font-size: .72rem; background: #eaeef2; }
+    .repo { color: #656d76; font-size: .8rem; }
+    #error { background: #ffebe9; border: 1px solid #ff818266; padding: .6rem; border-radius: 6px; margin-bottom: 1rem; display: none; }
+    .review-approved { color: #1a7f37; }
+    .review-changes_requested { color: #cf222e; }
+    .ci-pass { color: #1a7f37; }
+    .ci-fail { color: #cf222e; }
+    .ci-pending { color: #9a6700; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PR Dashboard</h1>
+    <span id="subtitle" class="muted"></span>
+    <div class="controls">
+      <select id="scope">
+        <option value="open">Open only</option>
+        <option value="all">Open + recently closed</option>
+      </select>
+      <button id="markRead">Mark all read</button>
+      <button id="refresh">Refresh</button>
+    </div>
+  </header>
+  <div id="error"></div>
+  <table>
+    <thead>
+      <tr><th></th><th>Participation</th><th>Review</th><th>CI</th><th>PR</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <p id="empty" class="muted" style="display:none">No PRs found.</p>
+  <script type="module" src="./dashboard.js"></script>
+</body>
+</html>
