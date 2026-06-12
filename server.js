@@ -2,7 +2,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, extname, normalize } from 'node:path';
+import { dirname, join, extname, normalize, relative, isAbsolute } from 'node:path';
 import { resolveToken } from './lib/token.js';
 import { fetchDashboard } from './lib/github.js';
 
@@ -34,7 +34,8 @@ async function serveStatic(req, res) {
   let urlPath = req.url === '/' ? '/index.html' : req.url.split('?')[0];
   // prevent path traversal
   const filePath = normalize(join(PUBLIC_DIR, urlPath));
-  if (!filePath.startsWith(PUBLIC_DIR)) {
+  const rel = relative(PUBLIC_DIR, filePath);
+  if (rel.startsWith('..') || isAbsolute(rel)) {
     res.writeHead(403).end('Forbidden');
     return;
   }
