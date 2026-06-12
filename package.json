@@ -1,0 +1,13 @@
+{
+  "name": "pr-dashboard",
+  "version": "0.1.0",
+  "description": "Local dashboard for GitHub PRs you truly participate in",
+  "type": "module",
+  "bin": { "pr-dashboard": "./server.js" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=18" },
+  "files": ["server.js", "lib", "public"]
+}
