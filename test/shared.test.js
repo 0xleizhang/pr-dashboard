@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapReviewStatus, mapCIStatus, isNewActivity } from '../public/shared.js';
+import { mapReviewStatus, mapCIStatus, isNewActivity, daysAgoISO, buildSearchQuery } from '../public/shared.js';
 
 test('mapReviewStatus: approved', () => {
   assert.equal(mapReviewStatus({ reviewDecision: 'APPROVED' }), 'approved');
@@ -37,4 +37,24 @@ test('isNewActivity: true when updated after last seen', () => {
 test('isNewActivity: false when not updated since last seen', () => {
   assert.equal(isNewActivity('2026-06-12T00:00:00Z', '2026-06-12T00:00:00Z'), false);
   assert.equal(isNewActivity('2026-06-13T00:00:00Z', '2026-06-12T00:00:00Z'), false);
+});
+
+const NOW = new Date('2026-06-12T00:00:00Z');
+
+test('daysAgoISO returns YYYY-MM-DD N days before now', () => {
+  assert.equal(daysAgoISO(7, NOW), '2026-06-05');
+});
+
+test('buildSearchQuery open scope', () => {
+  assert.equal(
+    buildSearchQuery({ user: 'me', org: 'ACME', scope: 'open', qualifier: 'involves', now: NOW }),
+    'is:pr involves:me org:ACME is:open'
+  );
+});
+
+test('buildSearchQuery all scope adds updated lookback', () => {
+  assert.equal(
+    buildSearchQuery({ user: 'me', org: 'ACME', scope: 'all', days: 7, qualifier: 'author', now: NOW }),
+    'is:pr author:me org:ACME updated:>=2026-06-05'
+  );
 });
