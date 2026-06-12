@@ -17,3 +17,8 @@ export function mapCIStatus(rollupState) {
     default: return 'unknown';
   }
 }
+
+export function isNewActivity(lastSeen, updatedAt) {
+  if (!lastSeen) return true;
+  return new Date(updatedAt).getTime() > new Date(lastSeen).getTime();
+}

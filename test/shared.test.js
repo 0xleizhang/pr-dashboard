@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapReviewStatus, mapCIStatus } from '../public/shared.js';
+import { mapReviewStatus, mapCIStatus, isNewActivity } from '../public/shared.js';
 
 test('mapReviewStatus: approved', () => {
   assert.equal(mapReviewStatus({ reviewDecision: 'APPROVED' }), 'approved');
@@ -25,4 +25,16 @@ test('mapCIStatus mapping', () => {
   assert.equal(mapCIStatus('EXPECTED'), 'pending');
   assert.equal(mapCIStatus(null), 'unknown');
   assert.equal(mapCIStatus(undefined), 'unknown');
+});
+
+test('isNewActivity: true when never seen', () => {
+  assert.equal(isNewActivity(undefined, '2026-06-12T00:00:00Z'), true);
+  assert.equal(isNewActivity(null, '2026-06-12T00:00:00Z'), true);
+});
+test('isNewActivity: true when updated after last seen', () => {
+  assert.equal(isNewActivity('2026-06-11T00:00:00Z', '2026-06-12T00:00:00Z'), true);
+});
+test('isNewActivity: false when not updated since last seen', () => {
+  assert.equal(isNewActivity('2026-06-12T00:00:00Z', '2026-06-12T00:00:00Z'), false);
+  assert.equal(isNewActivity('2026-06-13T00:00:00Z', '2026-06-12T00:00:00Z'), false);
 });
