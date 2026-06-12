@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, relative, isAbsolute } from 'node:path';
+import { exec } from 'node:child_process';
 import { resolveToken } from './lib/token.js';
 import { fetchDashboard } from './lib/github.js';
 
@@ -123,6 +124,7 @@ const server = createServer((req, res) => {
 server.listen(CONFIG.port, () => {
   const addr = `http://localhost:${CONFIG.port}`;
   console.log(`pr-dashboard for ${CONFIG.user} @ ${CONFIG.org} → ${addr}`);
+  exec(`open ${addr}`); // macOS: open in default browser
   pollForNewComments(); // seed baseline immediately
   setInterval(pollForNewComments, 5 * 60 * 1000);
 });
