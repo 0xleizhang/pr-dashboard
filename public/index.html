@@ -33,6 +33,7 @@
     .state-draft { background: #eaeef2; color: #656d76; }
     .state-closed { background: #ffebe9; color: #cf222e; }
     .state-merged { background: #fbefff; color: #8250df; }
+    #notifyToggle.off { color: #656d76; }
   </style>
 </head>
 <body>
@@ -56,6 +57,7 @@
         <option value="created">Created ↓</option>
         <option value="number">PR # ↓</option>
       </select>
+      <button id="notifyToggle">🔔 通知</button>
       <button id="markRead">Mark all read</button>
       <button id="refresh">Refresh</button>
     </div>

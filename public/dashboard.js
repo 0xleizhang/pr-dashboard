@@ -124,4 +124,67 @@ els.markRead.addEventListener('click', () => {
   render();
 });
 
+// ── Chrome notifications via SSE ──────────────────────────────────────
+const NOTIFY_KEY = 'pr-dashboard:notify';
+const notifyToggle = document.getElementById('notifyToggle');
+let evtSource = null;
+
+function isNotifyOn() {
+  return localStorage.getItem(NOTIFY_KEY) === 'on';
+}
+
+function applyNotifyUI() {
+  if (isNotifyOn()) {
+    notifyToggle.textContent = '🔔 通知';
+    notifyToggle.classList.remove('off');
+  } else {
+    notifyToggle.textContent = '🔕 静默';
+    notifyToggle.classList.add('off');
+  }
+}
+
+function connectSSE() {
+  if (evtSource) return;
+  evtSource = new EventSource('/api/events');
+  evtSource.addEventListener('new-comment', (e) => {
+    if (!isNotifyOn()) return;
+    const d = JSON.parse(e.data);
+    const n = new Notification(`💬 ${d.commentAuthor} on ${d.prTitle}`, {
+      body: d.commentSnip,
+      tag: d.prUrl,
+    });
+    n.onclick = () => { window.open(d.prUrl, '_blank', 'noopener'); n.close(); };
+  });
+}
+
+function disconnectSSE() {
+  evtSource?.close();
+  evtSource = null;
+}
+
+async function enableNotifications() {
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    localStorage.setItem(NOTIFY_KEY, 'on');
+    connectSSE();
+  } else {
+    localStorage.setItem(NOTIFY_KEY, 'off');
+  }
+  applyNotifyUI();
+}
+
+notifyToggle.addEventListener('click', () => {
+  if (isNotifyOn()) {
+    localStorage.setItem(NOTIFY_KEY, 'off');
+    disconnectSSE();
+    applyNotifyUI();
+  } else {
+    enableNotifications();
+  }
+});
+
+// Connect SSE on load if previously enabled and permission still granted
+applyNotifyUI();
+if (isNotifyOn() && Notification.permission === 'granted') connectSSE();
+
 load();
