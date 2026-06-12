@@ -57,3 +57,44 @@ export function buildGraphQLQuery({ user, org, scope, days = 7, now = new Date()
     byCommenter: ${search('commenter', KEY_FIELDS)}
   }`;
 }
+
+function prKey(node) {
+  return `${node.repository.nameWithOwner}#${node.number}`;
+}
+
+export function mergeLabels(prs, labelSets) {
+  return prs.map(pr => {
+    const labels = [];
+    for (const [label, keys] of Object.entries(labelSets)) {
+      if (keys.has(pr.key)) labels.push(label);
+    }
+    return { ...pr, labels };
+  });
+}
+
+export function parseGraphQLResponse(json) {
+  const data = json.data || {};
+  const nodes = (alias) => (data[alias]?.nodes || []).filter(n => n && n.number);
+
+  const prs = nodes('main').map(n => ({
+    key: prKey(n),
+    number: n.number,
+    title: n.title,
+    url: n.url,
+    repo: n.repository.nameWithOwner,
+    updatedAt: n.updatedAt,
+    isDraft: n.isDraft,
+    state: n.state,
+    review: mapReviewStatus(n),
+    ci: mapCIStatus(n.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state),
+  }));
+
+  const setOf = (alias) => new Set(nodes(alias).map(prKey));
+  const labelSets = {
+    author: setOf('byAuthor'),
+    assignee: setOf('byAssignee'),
+    mention: setOf('byMention'),
+    commenter: setOf('byCommenter'),
+  };
+  return mergeLabels(prs, labelSets);
+}
