@@ -34,6 +34,7 @@ function saveSeen(seen) {
 
 const SORTERS = {
   number:  { asc: (a, b) => a.number - b.number,           desc: (a, b) => b.number - a.number },
+  author:  { asc: (a, b) => a.author.localeCompare(b.author), desc: (a, b) => b.author.localeCompare(a.author) },
   created: { asc: (a, b) => new Date(a.createdAt) - new Date(b.createdAt), desc: (a, b) => new Date(b.createdAt) - new Date(a.createdAt) },
   updated: { asc: (a, b) => new Date(a.updatedAt) - new Date(b.updatedAt), desc: (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt) },
 };
@@ -42,6 +43,7 @@ let sortState = { col: 'updated', dir: 'desc' }; // default
 
 const sortCols = {
   'th-number':  'number',
+  'th-author':  'author',
   'th-created': 'created',
   'th-updated': 'updated',
 };
