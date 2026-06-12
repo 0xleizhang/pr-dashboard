@@ -28,6 +28,11 @@
     .ci-pending { color: #9a6700; }
     .comment { margin-top: .25rem; font-size: .8rem; }
     .warn { color: #9a6700; font-weight: 600; }
+    .state { display: inline-block; padding: 0 .4rem; border-radius: 4px; font-size: .75rem; font-weight: 600; }
+    .state-open { background: #dafbe1; color: #1a7f37; }
+    .state-draft { background: #eaeef2; color: #656d76; }
+    .state-closed { background: #ffebe9; color: #cf222e; }
+    .state-merged { background: #fbefff; color: #8250df; }
   </style>
 </head>
 <body>
@@ -46,6 +51,11 @@
         <option value="open">Open only</option>
         <option value="all">Open + recently closed</option>
       </select>
+      <select id="sort">
+        <option value="updated">Updated ↓</option>
+        <option value="created">Created ↓</option>
+        <option value="number">PR # ↓</option>
+      </select>
       <button id="markRead">Mark all read</button>
       <button id="refresh">Refresh</button>
     </div>
@@ -53,7 +63,7 @@
   <div id="error"></div>
   <table>
     <thead>
-      <tr><th></th><th>Participation</th><th>Review</th><th>CI</th><th>PR</th></tr>
+      <tr><th></th><th>State</th><th>Participation</th><th>Review</th><th>CI</th><th>PR</th></tr>
     </thead>
     <tbody id="rows"></tbody>
   </table>

@@ -109,7 +109,7 @@ test('parseGraphQLResponse normalizes PRs and merges participation labels', () =
   const json = {
     data: {
       main: { nodes: [
-        { number: 1, title: 'Fix bug', url: 'http://x/1', updatedAt: '2026-06-12T00:00:00Z',
+        { number: 1, title: 'Fix bug', url: 'http://x/1', createdAt: '2026-06-10T00:00:00Z', updatedAt: '2026-06-12T00:00:00Z',
           isDraft: false, state: 'OPEN', reviewDecision: 'APPROVED',
           repository: { nameWithOwner: 'ACME/web' },
           comments: { totalCount: 3, nodes: [{ author: { login: 'reviewer1' }, bodyText: 'please fix', createdAt: '2026-06-12T09:00:00Z' }] },
@@ -142,6 +142,7 @@ test('parseGraphQLResponse normalizes PRs and merges participation labels', () =
   assert.deepEqual(pr1.labels.sort(), ['author', 'mention']);
   assert.deepEqual(pr1.latestComment, { author: 'reviewer1', body: 'please fix', createdAt: '2026-06-12T09:00:00Z' });
   assert.equal(pr1.unresolved, 2);
+  assert.equal(pr1.createdAt, '2026-06-10T00:00:00Z');
 
   const pr2 = prs.find(p => p.number === 2);
   assert.equal(pr2.ci, 'unknown');

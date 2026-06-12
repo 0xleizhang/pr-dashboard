@@ -71,7 +71,7 @@ export function buildSearchQuery({ user, org, scope, days = 7, qualifier, now = 
 
 const PR_FIELDS = `
   ... on PullRequest {
-    number title url updatedAt isDraft state reviewDecision
+    number title url createdAt updatedAt isDraft state reviewDecision
     repository { nameWithOwner }
     comments(last: 1) { totalCount nodes { author { login } bodyText createdAt } }
     reviews { totalCount }
@@ -139,6 +139,7 @@ export function parseGraphQLResponse(json) {
     title: n.title,
     url: n.url,
     repo: n.repository.nameWithOwner,
+    createdAt: n.createdAt,
     updatedAt: n.updatedAt,
     isDraft: n.isDraft,
     state: n.state,

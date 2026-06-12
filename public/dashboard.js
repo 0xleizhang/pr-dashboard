@@ -7,6 +7,7 @@ const els = {
   empty: document.getElementById('empty'),
   scope: document.getElementById('scope'),
   type: document.getElementById('type'),
+  sort: document.getElementById('sort'),
   refresh: document.getElementById('refresh'),
   markRead: document.getElementById('markRead'),
   subtitle: document.getElementById('subtitle'),
@@ -15,6 +16,14 @@ const els = {
 const PARTICIPATION = { author: '🖊 author', assignee: '👤 assignee', mention: '@ mention', commenter: '💬 commenter' };
 const REVIEW = { approved: '✅ approved', changes_requested: '❌ changes', commented: '💬 commented', none: '⚪ none' };
 const CI = { pass: '🟢 pass', fail: '🔴 fail', pending: '🟡 pending', unknown: '⚪ —' };
+const STATE = { open: 'open', draft: 'draft', closed: 'closed', merged: 'merged' };
+
+function prState(pr) {
+  if (pr.isDraft) return 'draft';
+  if (pr.state === 'MERGED') return 'merged';
+  if (pr.state === 'CLOSED') return 'closed';
+  return 'open';
+}
 
 let allPrs = [];
 
@@ -26,10 +35,16 @@ function saveSeen(seen) {
   localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
 }
 
+const SORTERS = {
+  updated: (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
+  created: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+  number: (a, b) => b.number - a.number,
+};
+
 function visiblePrs() {
   const type = els.type.value;
-  if (type === 'all') return allPrs;
-  return allPrs.filter(pr => pr.labels.includes(type));
+  const filtered = type === 'all' ? allPrs : allPrs.filter(pr => pr.labels.includes(type));
+  return [...filtered].sort(SORTERS[els.sort.value] || SORTERS.updated);
 }
 
 function authorInfo(pr) {
@@ -54,13 +69,15 @@ function render() {
     const isNew = isNewActivity(seen[pr.key], pr.updatedAt);
     const tr = document.createElement('tr');
     tr.className = 'pr';
+    const state = prState(pr);
     tr.innerHTML = `
       <td>${isNew ? '<span class="dot new" title="new activity"></span>' : ''}</td>
+      <td><span class="state state-${state}">${STATE[state]}</span></td>
       <td>${pr.labels.map(l => `<span class="tag">${PARTICIPATION[l]}</span>`).join('')}</td>
       <td class="review-${pr.review}">${REVIEW[pr.review]}</td>
       <td class="ci-${pr.ci}">${CI[pr.ci]}</td>
       <td>
-        <div>${pr.isDraft ? '<span class="tag">draft</span>' : ''}${escapeHtml(pr.title)}</div>
+        <div>${escapeHtml(pr.title)}</div>
         <div class="repo">${pr.repo}#${pr.number}</div>
         ${pr.labels.includes('author') ? authorInfo(pr) : ''}
       </td>`;
@@ -81,7 +98,7 @@ function escapeHtml(s) {
 
 async function load() {
   els.error.style.display = 'none';
-  els.rows.innerHTML = '<tr><td colspan="5" class="muted">Loading…</td></tr>';
+  els.rows.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
   try {
     const res = await fetch(`/api/prs?scope=${els.scope.value}`);
     const data = await res.json();
@@ -99,6 +116,7 @@ async function load() {
 els.refresh.addEventListener('click', load);
 els.scope.addEventListener('change', load);
 els.type.addEventListener('change', render);
+els.sort.addEventListener('change', render);
 els.markRead.addEventListener('click', () => {
   const seen = loadSeen();
   for (const pr of visiblePrs()) seen[pr.key] = pr.updatedAt;
