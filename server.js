@@ -76,7 +76,9 @@ function serveSSE(req, res) {
   });
   res.write(':\n\n'); // initial heartbeat
   sseClients.add(res);
-  req.on('close', () => sseClients.delete(res));
+  const cleanup = () => sseClients.delete(res);
+  req.on('close', cleanup);
+  req.socket.on('error', cleanup);
 }
 
 function pushSSE(event, data) {
