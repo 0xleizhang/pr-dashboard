@@ -36,10 +36,44 @@ function saveSeen(seen) {
 }
 
 const SORTERS = {
-  updated: (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
-  created: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
-  number: (a, b) => b.number - a.number,
+  number:  { asc: (a, b) => a.number - b.number,           desc: (a, b) => b.number - a.number },
+  created: { asc: (a, b) => new Date(a.createdAt) - new Date(b.createdAt), desc: (a, b) => new Date(b.createdAt) - new Date(a.createdAt) },
+  updated: { asc: (a, b) => new Date(a.updatedAt) - new Date(b.updatedAt), desc: (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt) },
 };
+
+let sortState = { col: 'updated', dir: 'desc' }; // default
+
+const sortCols = {
+  'th-number':  'number',
+  'th-created': 'created',
+  'th-updated': 'updated',
+};
+
+function updateSortUI() {
+  for (const [id, col] of Object.entries(sortCols)) {
+    const th = document.getElementById(id);
+    const dir = th.querySelector('.sort-dir');
+    if (sortState.col === col) {
+      dir.textContent = sortState.dir === 'desc' ? ' ↓' : ' ↑';
+    } else {
+      dir.textContent = '';
+    }
+  }
+}
+
+for (const [id, col] of Object.entries(sortCols)) {
+  document.getElementById(id).addEventListener('click', () => {
+    if (sortState.col === col) {
+      sortState.dir = sortState.dir === 'desc' ? 'asc' : 'desc';
+    } else {
+      sortState = { col, dir: 'desc' };
+    }
+    updateSortUI();
+    render();
+  });
+}
+
+updateSortUI();
 
 function formatTime(iso) {
   if (!iso) return '—';
@@ -51,10 +85,18 @@ function formatTime(iso) {
   return `${mm}-${dd} ${hh}:${min}`;
 }
 
+// Stubs reassigned in Task 6
+let activeStateFilter = () => [];
+let activeTypeFilter = () => 'all';
+
 function visiblePrs() {
-  const type = els.type.value;
-  const filtered = type === 'all' ? allPrs : allPrs.filter(pr => pr.labels.includes(type));
-  return [...filtered].sort(SORTERS[els.sort.value] || SORTERS.updated);
+  const stateFilter = activeStateFilter();
+  const typeFilter = activeTypeFilter();
+  let filtered = allPrs;
+  if (stateFilter.length) filtered = filtered.filter(pr => stateFilter.includes(prState(pr)));
+  if (typeFilter !== 'all') filtered = filtered.filter(pr => pr.labels.includes(typeFilter));
+  const sorter = SORTERS[sortState.col]?.[sortState.dir] ?? SORTERS.updated.desc;
+  return [...filtered].sort(sorter);
 }
 
 function authorInfo(pr) {
@@ -130,7 +172,6 @@ async function load() {
 els.refresh.addEventListener('click', load);
 els.scope.addEventListener('change', load);
 els.type.addEventListener('change', render);
-els.sort.addEventListener('change', render);
 els.markRead.addEventListener('click', () => {
   const seen = loadSeen();
   for (const pr of visiblePrs()) seen[pr.key] = pr.updatedAt;
