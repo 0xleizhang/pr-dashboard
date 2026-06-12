@@ -84,7 +84,9 @@ function serveSSE(req, res) {
 
 function pushSSE(event, data) {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  for (const res of sseClients) res.write(payload);
+  for (const res of sseClients) {
+    try { res.write(payload); } catch { sseClients.delete(res); }
+  }
 }
 
 async function pollForNewComments() {

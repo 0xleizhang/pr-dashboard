@@ -172,7 +172,7 @@ function render() {
       <td class="td-time">${formatTime(pr.updatedAt)}</td>
       <td>
         <div>${escapeHtml(pr.title)}</div>
-        <div class="repo">${pr.repo}</div>
+        <div class="repo">${escapeHtml(pr.repo)}</div>
         ${pr.labels.includes('author') ? authorInfo(pr) : ''}
       </td>`;
     tr.addEventListener('click', () => {
@@ -238,7 +238,7 @@ function connectSSE() {
   if (evtSource) return;
   evtSource = new EventSource('/api/events');
   evtSource.addEventListener('new-comment', (e) => {
-    if (!isNotifyOn()) return;
+    if (!isNotifyOn() || Notification.permission !== 'granted') return;
     const d = JSON.parse(e.data);
     const n = new Notification(`💬 ${d.commentAuthor} on ${d.prTitle}`, {
       body: d.commentSnip,
