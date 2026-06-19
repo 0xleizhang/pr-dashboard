@@ -15,6 +15,7 @@ const HIDEABLE_COLS = [
   { idx: 7, label: 'Created' },
   { idx: 8, label: 'Updated' },
 ];
+
 const THEME_STATES = ['auto', 'dark', 'light'];
 const THEME_LABELS = { auto: '💻 Auto', dark: '🌙 Dark', light: '☀️ Light' };
 
@@ -241,7 +242,7 @@ function setupColumnsDropdown() {
         const widths = {};
         cols.forEach((c, i) => {
           const w = parseInt(c.style.width);
-          if (!isNaN(w)) widths[i] = w;
+          if (!isNaN(w) && w > 0) widths[i] = w;  // skip hidden (width=0) cols
         });
         saveColWidths(widths);
       }

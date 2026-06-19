@@ -222,6 +222,7 @@
     #main-table.hide-col-6 th:nth-child(7), #main-table.hide-col-6 td:nth-child(7) { display: none; }
     #main-table.hide-col-7 th:nth-child(8), #main-table.hide-col-7 td:nth-child(8) { display: none; }
     #main-table.hide-col-8 th:nth-child(9), #main-table.hide-col-8 td:nth-child(9) { display: none; }
+    .col-visibility-wrap { position: relative; display: inline-block; }
   </style>
 </head>
 <body>
@@ -229,7 +230,7 @@
     <h1>PR Dashboard</h1>
     <span id="subtitle" class="muted"></span>
     <div class="controls">
-      <div style="position:relative">
+      <div class="col-visibility-wrap">
         <button id="col-visibility-btn">Columns ▾</button>
         <div class="th-dropdown" id="col-visibility-dropdown"></div>
       </div>
