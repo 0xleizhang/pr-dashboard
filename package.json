@@ -5,9 +5,12 @@
   "type": "module",
   "bin": { "pr-dashboard": "./server.js" },
   "scripts": {
-    "start": "node server.js",
+    "start": "node --watch server.js",
     "test": "node --test"
   },
   "engines": { "node": ">=18" },
-  "files": ["server.js", "lib", "public"]
+  "files": ["server.js", "lib", "public"],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  }
 }

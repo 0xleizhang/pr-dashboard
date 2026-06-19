@@ -162,17 +162,19 @@ function saveColVisibility(v) {
 }
 
 function applyColVisibility(v) {
-  const table = document.getElementById('main-table');
   const cols = document.querySelectorAll('#colgroup col');
   const savedWidths = loadColWidths();
   for (const { idx, defaultW } of HIDEABLE_COLS) {
     const hidden = v[idx] === false;
-    table.classList.toggle(`hide-col-${idx}`, hidden);
     if (cols[idx]) {
-      // visibility:collapse is the CSS-spec way to remove a column's space;
-      // setting width:0 is unreliable with table-layout:fixed.
-      cols[idx].style.visibility = hidden ? 'collapse' : '';
-      if (!hidden) {
+      if (hidden) {
+        // visibility:collapse hides cells and collapses width to 0.
+        // Also set width:0 explicitly so table-layout:fixed allocates no space.
+        // Do NOT use display:none on th/td — it shifts col-to-cell alignment.
+        cols[idx].style.width = '0px';
+        cols[idx].style.visibility = 'collapse';
+      } else {
+        cols[idx].style.visibility = '';
         const w = savedWidths[idx] > 0 ? savedWidths[idx] : defaultW;
         cols[idx].style.width = w + 'px';
       }

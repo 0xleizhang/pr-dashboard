@@ -1,5 +1,8 @@
+const BOT_LOGINS = new Set(['greptile-apps', 'urbancompass-automation', 'github-actions']);
+
 function isBot(login) {
-  return (login ?? '').endsWith('[bot]');
+  const l = login ?? '';
+  return l.endsWith('[bot]') || BOT_LOGINS.has(l);
 }
 
 export function mapReviewStatus(pr) {
@@ -37,6 +40,35 @@ function normalizeCheck(node) {
     case 'SKIPPED': return 'pass';
     default: return 'fail';
   }
+}
+
+// Extract unique pending owner teams/users from the owners-files check summary.
+// The check outputs markdown links like [UrbanCompass/team-name](https://github.com/orgs/UrbanCompass/teams/team-name/members)
+function extractPendingOwners(text) {
+  if (!text) return [];
+  const seen = new Set();
+  const pending = [];
+  // Match markdown links pointing to GitHub teams: [Org/team](https://github.com/orgs/Org/teams/team/members)
+  const teamRe = /\[([^\]]+)\]\((https:\/\/github\.com\/orgs\/[^/]+\/teams\/[^)]+\/members)\)/g;
+  let m;
+  while ((m = teamRe.exec(text)) !== null) {
+    const key = m[2];
+    if (!seen.has(key)) { seen.add(key); pending.push({ name: m[1], url: m[2] }); }
+  }
+  return pending;
+}
+
+// Return the owners-files check status, link, and list of pending approvers.
+export function parseOwnersPending(rollup, prUrl) {
+  const checks = (rollup?.contexts?.nodes || [])
+    .filter(n => n && n.__typename === 'CheckRun' && CI_EXCLUDE.some(ex => checkName(n).includes(ex)));
+  if (!checks.length) return null;
+  const check = checks[checks.length - 1];
+  const status = normalizeCheck(check);
+  const checkUrl = check.databaseId ? `${prUrl}/checks?check_run_id=${check.databaseId}` : null;
+  const rawText = [check.title, check.summary, check.text].filter(Boolean).join('\n');
+  const pending = status === 'fail' ? extractPendingOwners(rawText) : [];
+  return { checkUrl, status, pending };
 }
 
 // Aggregate the real CI checks (excluding approval-gated ones) into one status.
@@ -78,14 +110,14 @@ const PR_FIELDS = `
     id number title url createdAt updatedAt isDraft state reviewDecision
     author { login }
     repository { nameWithOwner }
-    comments(last: 10) { totalCount nodes { author { login } bodyText createdAt } }
-    reviews(last: 20) { totalCount nodes { author { login } state body submittedAt } }
-    reviewThreads(first: 100) { nodes { isResolved } }
+    comments(last: 10) { totalCount nodes { author { login } bodyText createdAt url } }
+    reviews(last: 20) { totalCount nodes { author { login } state body submittedAt url } }
+    reviewThreads(first: 100) { nodes { isResolved comments(first: 10) { nodes { author { login } body url createdAt } } } }
     commits(last: 1) { nodes { commit { statusCheckRollup {
       contexts(first: 100) {
         nodes {
           __typename
-          ... on CheckRun { name status conclusion }
+          ... on CheckRun { name status conclusion databaseId title summary text }
           ... on StatusContext { context state }
         }
       }
@@ -125,11 +157,19 @@ function reviewDetailsOf(node) {
   const REVIEW_STATE = { APPROVED: '✅ Approved', CHANGES_REQUESTED: '❌ Changes Requested', COMMENTED: '💬 Commented', DISMISSED: '⚫ Dismissed' };
   const reviewers = (node.reviews?.nodes ?? [])
     .filter(r => !isBot(r.author?.login) && r.state !== 'PENDING')
-    .map(r => ({ login: r.author?.login ?? 'unknown', state: r.state, label: REVIEW_STATE[r.state] ?? r.state, body: r.body ?? '' }));
+    .map(r => ({ login: r.author?.login ?? 'unknown', state: r.state, label: REVIEW_STATE[r.state] ?? r.state, body: r.body ?? '', url: r.url ?? '', submittedAt: r.submittedAt ?? null }));
   const comments = (node.comments?.nodes ?? [])
     .filter(c => !isBot(c.author?.login))
-    .map(c => ({ author: c.author?.login ?? 'unknown', body: c.bodyText ?? '', createdAt: c.createdAt }));
-  return { reviewers, comments };
+    .map(c => ({ author: c.author?.login ?? 'unknown', body: c.bodyText ?? '', createdAt: c.createdAt, url: c.url ?? '' }));
+  const threadGroups = (node.reviewThreads?.nodes ?? [])
+    .map(t => ({
+      isResolved: t.isResolved,
+      comments: (t.comments?.nodes ?? [])
+        .filter(c => !isBot(c.author?.login))
+        .map(c => ({ author: c.author?.login ?? 'unknown', body: c.body ?? '', url: c.url ?? '', createdAt: c.createdAt })),
+    }))
+    .filter(t => t.comments.length > 0);
+  return { reviewers, comments, threadGroups };
 }
 
 function unresolvedThreadCount(node) {
@@ -165,6 +205,7 @@ export function parseGraphQLResponse(json) {
     review: mapReviewStatus(n),
     reviewDetail: reviewDetailsOf(n),
     ci: mapCIStatus(n.commits?.nodes?.[0]?.commit?.statusCheckRollup),
+    ownersPending: parseOwnersPending(n.commits?.nodes?.[0]?.commit?.statusCheckRollup, n.url),
     latestComment: latestCommentOf(n),
     unresolved: unresolvedThreadCount(n),
   }));
