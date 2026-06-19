@@ -214,6 +214,14 @@
     .owners-tag.owners-fail { background: var(--color-owners-pending-bg); border: 1px solid var(--color-owners-pending-border); }
     .owners-tag.owners-running { background: var(--color-owners-running-bg); border: 1px solid var(--color-owners-running-border); }
     .owners-running-banner { background: var(--color-owners-running-bg); border: 1px solid var(--color-owners-running-border); }
+    #main-table.hide-col-1 th:nth-child(2), #main-table.hide-col-1 td:nth-child(2) { display: none; }
+    #main-table.hide-col-2 th:nth-child(3), #main-table.hide-col-2 td:nth-child(3) { display: none; }
+    #main-table.hide-col-3 th:nth-child(4), #main-table.hide-col-3 td:nth-child(4) { display: none; }
+    #main-table.hide-col-4 th:nth-child(5), #main-table.hide-col-4 td:nth-child(5) { display: none; }
+    #main-table.hide-col-5 th:nth-child(6), #main-table.hide-col-5 td:nth-child(6) { display: none; }
+    #main-table.hide-col-6 th:nth-child(7), #main-table.hide-col-6 td:nth-child(7) { display: none; }
+    #main-table.hide-col-7 th:nth-child(8), #main-table.hide-col-7 td:nth-child(8) { display: none; }
+    #main-table.hide-col-8 th:nth-child(9), #main-table.hide-col-8 td:nth-child(9) { display: none; }
   </style>
 </head>
 <body>
@@ -221,6 +229,10 @@
     <h1>PR Dashboard</h1>
     <span id="subtitle" class="muted"></span>
     <div class="controls">
+      <div style="position:relative">
+        <button id="col-visibility-btn">Columns ▾</button>
+        <div class="th-dropdown" id="col-visibility-dropdown"></div>
+      </div>
       <button id="theme-toggle">💻 Auto</button>
       <label class="switch" title="Only show my PRs"><input type="checkbox" id="me-toggle" checked><span class="slider"></span></label>
       <span style="font-size:.82rem">Me</span>
