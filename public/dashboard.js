@@ -500,6 +500,7 @@ function render() {
       <td>
         <div><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener" class="pr-title-link">${escapeHtml(pr.title)}</a></div>
         <div class="repo">${escapeHtml(pr.repo)}</div>
+        ${(() => { const id = extractJiraId(pr.title); return id ? `<div class="jira-id"><a href="https://compass-tech.atlassian.net/browse/${escapeHtml(id)}" target="_blank" rel="noopener">🎫 ${escapeHtml(id)}</a></div>` : ''; })()}
         ${pr.labels.includes('author') ? authorInfo(pr) : ''}
       </td>`;
     tr.querySelector('.td-number a').addEventListener('click', () => {
@@ -516,6 +517,11 @@ function render() {
 
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function extractJiraId(title) {
+  const m = /\[([A-Z]+-\d+)\]/.exec(title);
+  return m ? m[1] : null;
 }
 
 function notifyChanges(prevPrs, nextPrs) {
