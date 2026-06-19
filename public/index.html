@@ -5,62 +5,206 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PR Dashboard</title>
   <style>
-    body { font: 14px/1.5 -apple-system, system-ui, sans-serif; margin: 0; padding: 1.5rem; color: #1f2328; }
+    :root {
+      --color-bg: #ffffff;
+      --color-fg: #1f2328;
+      --color-muted: #656d76;
+      --color-border: #d0d7de;
+      --color-border-subtle: #eaeef2;
+      --color-surface: #f6f8fa;
+      --color-surface-2: #eaeef2;
+      --color-link: #0969da;
+      --color-resizer-hover: #0969da33;
+      --color-error-bg: #ffebe9;
+      --color-error-border: #ff818266;
+      --color-ci-pass: #1a7f37;
+      --color-ci-fail: #cf222e;
+      --color-ci-pending: #9a6700;
+      --color-warn: #9a6700;
+      --color-time: #8c959f;
+      --color-state-open-bg: #dafbe1;
+      --color-state-open-fg: #1a7f37;
+      --color-state-draft-bg: #eaeef2;
+      --color-state-draft-fg: #656d76;
+      --color-state-closed-bg: #ffebe9;
+      --color-state-closed-fg: #cf222e;
+      --color-state-merged-bg: #fbefff;
+      --color-state-merged-fg: #8250df;
+      --color-review-approved: #1a7f37;
+      --color-review-changes: #cf222e;
+      --color-dialog-shadow: rgba(0,0,0,.15);
+      --color-backdrop: rgba(0,0,0,.3);
+      --color-slider-bg: #d0d7de;
+      --color-slider-thumb: white;
+      --color-dropdown-bg: #fff;
+      --color-owners-pending-bg: #fff8c5;
+      --color-owners-pending-border: #e3b341;
+      --color-owners-ok-bg: #dafbe1;
+      --color-owners-ok-border: #2da44e;
+      --color-owners-running-bg: #f6f8fa;
+      --color-owners-running-border: #d0d7de;
+    }
+    [data-theme="dark"] {
+      --color-bg: #0d1117;
+      --color-fg: #e6edf3;
+      --color-muted: #8b949e;
+      --color-border: #30363d;
+      --color-border-subtle: #21262d;
+      --color-surface: #161b22;
+      --color-surface-2: #21262d;
+      --color-link: #58a6ff;
+      --color-resizer-hover: #58a6ff33;
+      --color-error-bg: #2d0e0e;
+      --color-error-border: #f8514966;
+      --color-ci-pass: #3fb950;
+      --color-ci-fail: #f85149;
+      --color-ci-pending: #d29922;
+      --color-warn: #e3b341;
+      --color-time: #8b949e;
+      --color-state-open-bg: #1a3a2b;
+      --color-state-open-fg: #3fb950;
+      --color-state-draft-bg: #21262d;
+      --color-state-draft-fg: #8b949e;
+      --color-state-closed-bg: #2d0f0f;
+      --color-state-closed-fg: #f85149;
+      --color-state-merged-bg: #2d1b4e;
+      --color-state-merged-fg: #bc8cff;
+      --color-review-approved: #3fb950;
+      --color-review-changes: #f85149;
+      --color-dialog-shadow: rgba(0,0,0,.4);
+      --color-backdrop: rgba(0,0,0,.6);
+      --color-slider-bg: #30363d;
+      --color-slider-thumb: #e6edf3;
+      --color-dropdown-bg: #161b22;
+      --color-owners-pending-bg: #2d2200;
+      --color-owners-pending-border: #9e6a03;
+      --color-owners-ok-bg: #1a2e1a;
+      --color-owners-ok-border: #2ea043;
+      --color-owners-running-bg: #21262d;
+      --color-owners-running-border: #30363d;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --color-bg: #0d1117;
+        --color-fg: #e6edf3;
+        --color-muted: #8b949e;
+        --color-border: #30363d;
+        --color-border-subtle: #21262d;
+        --color-surface: #161b22;
+        --color-surface-2: #21262d;
+        --color-link: #58a6ff;
+        --color-resizer-hover: #58a6ff33;
+        --color-error-bg: #2d0e0e;
+        --color-error-border: #f8514966;
+        --color-ci-pass: #3fb950;
+        --color-ci-fail: #f85149;
+        --color-ci-pending: #d29922;
+        --color-warn: #e3b341;
+        --color-time: #8b949e;
+        --color-state-open-bg: #1a3a2b;
+        --color-state-open-fg: #3fb950;
+        --color-state-draft-bg: #21262d;
+        --color-state-draft-fg: #8b949e;
+        --color-state-closed-bg: #2d0f0f;
+        --color-state-closed-fg: #f85149;
+        --color-state-merged-bg: #2d1b4e;
+        --color-state-merged-fg: #bc8cff;
+        --color-review-approved: #3fb950;
+        --color-review-changes: #f85149;
+        --color-dialog-shadow: rgba(0,0,0,.4);
+        --color-backdrop: rgba(0,0,0,.6);
+        --color-slider-bg: #30363d;
+        --color-slider-thumb: #e6edf3;
+        --color-dropdown-bg: #161b22;
+        --color-owners-pending-bg: #2d2200;
+        --color-owners-pending-border: #9e6a03;
+        --color-owners-ok-bg: #1a2e1a;
+        --color-owners-ok-border: #2ea043;
+        --color-owners-running-bg: #21262d;
+        --color-owners-running-border: #30363d;
+      }
+    }
+    body { font: 14px/1.5 -apple-system, system-ui, sans-serif; margin: 0; padding: 1.5rem; color: var(--color-fg); background: var(--color-bg); }
     header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
     h1 { font-size: 1.1rem; margin: 0; }
     .controls { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
-    button, select { font: inherit; padding: .3rem .6rem; border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; cursor: pointer; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid #eaeef2; }
-    th { font-size: .8rem; color: #656d76; font-weight: 600; }
+    .refresh-group { display: flex; align-items: center; gap: .25rem; padding: .15rem .4rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); }
+    .refresh-group select, .refresh-group button { border: none; background: none; padding: .1rem .2rem; }
+    .refresh-group button { cursor: pointer; }
+    button, select { font: inherit; padding: .3rem .6rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); color: var(--color-fg); cursor: pointer; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+    th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--color-border-subtle); }
+    th { font-size: .8rem; color: var(--color-muted); font-weight: 600; position: relative; white-space: nowrap; }
+    td { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .col-resizer { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 1; user-select: none; }
+    .col-resizer:hover, .col-resizer.dragging { background: var(--color-resizer-hover); }
+    body.col-resizing { cursor: col-resize; user-select: none; }
     tr.pr { cursor: pointer; }
-    tr.pr:hover { background: #f6f8fa; }
+    tr.pr:hover { background: var(--color-surface); }
     .dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; }
-    .new { background: #0969da; }
-    .muted { color: #656d76; }
-    .tag { display: inline-block; padding: 0 .35rem; margin-right: .2rem; border-radius: 4px; font-size: .72rem; background: #eaeef2; }
-    .repo { color: #656d76; font-size: .8rem; }
-    #error { background: #ffebe9; border: 1px solid #ff818266; padding: .6rem; border-radius: 6px; margin-bottom: 1rem; display: none; }
-    .review-approved { color: #1a7f37; }
-    .review-changes_requested { color: #cf222e; }
-    .ci-pass { color: #1a7f37; }
-    .ci-fail { color: #cf222e; }
-    .ci-pending { color: #9a6700; }
+    .new { background: var(--color-link); }
+    .muted { color: var(--color-muted); }
+    .tag { display: inline-block; padding: 0 .35rem; margin-right: .2rem; border-radius: 4px; font-size: .72rem; background: var(--color-surface-2); }
+    .repo { color: var(--color-muted); font-size: .8rem; }
+    #error { background: var(--color-error-bg); border: 1px solid var(--color-error-border); padding: .6rem; border-radius: 6px; margin-bottom: 1rem; display: none; }
+    .ci-pass { color: var(--color-ci-pass); }
+    .ci-fail { color: var(--color-ci-fail); }
+    .ci-pending { color: var(--color-ci-pending); }
     .comment { margin-top: .25rem; font-size: .8rem; }
-    .warn { color: #9a6700; font-weight: 600; }
+    .warn { color: var(--color-warn); font-weight: 600; }
     .state { display: inline-block; padding: 0 .4rem; border-radius: 4px; font-size: .75rem; font-weight: 600; }
-    .state-open { background: #dafbe1; color: #1a7f37; }
-    .state-draft { background: #eaeef2; color: #656d76; }
-    .state-closed { background: #ffebe9; color: #cf222e; }
-    .state-merged { background: #fbefff; color: #8250df; }
+    .state-open { background: var(--color-state-open-bg); color: var(--color-state-open-fg); }
+    .state-draft { background: var(--color-state-draft-bg); color: var(--color-state-draft-fg); }
+    .state-closed { background: var(--color-state-closed-bg); color: var(--color-state-closed-fg); }
+    .state-merged { background: var(--color-state-merged-bg); color: var(--color-state-merged-fg); }
     #notifyToggle.off { color: #656d76; }
     th.sortable { cursor: pointer; user-select: none; }
-    th.sortable:hover { color: #1f2328; }
+    th.sortable:hover { color: var(--color-fg); }
     .sort-dir { font-size: .7rem; }
     .th-filter-wrap { position: relative; display: inline-block; }
     .th-arrow { cursor: pointer; font-size: .7rem; }
-    .th-dropdown { display: none; position: absolute; top: 100%; left: 0; z-index: 10;
-      background: #fff; border: 1px solid #d0d7de; border-radius: 6px;
-      box-shadow: 0 4px 12px rgba(0,0,0,.1); min-width: 140px; padding: .25rem 0; }
+    .th-dropdown { display: none; position: absolute; top: 100%; left: 0; z-index: 100;
+      background: var(--color-dropdown-bg); border: 1px solid var(--color-border); border-radius: 6px;
+      box-shadow: 0 4px 12px var(--color-dialog-shadow); min-width: 140px; padding: .25rem 0; }
     .th-dropdown.open { display: block; }
     .th-dropdown label { display: flex; align-items: center; gap: .4rem;
       padding: .25rem .6rem; font-size: .8rem; cursor: pointer; }
-    .th-dropdown label:hover { background: #f6f8fa; }
-    .td-time { font-size: .75rem; color: #656d76; white-space: nowrap; }
+    .th-dropdown label:hover { background: var(--color-surface); }
+    .td-time { font-size: .75rem; color: var(--color-muted); white-space: nowrap; }
     .td-author { font-size: .8rem; }
-    .td-number a { color: #0969da; text-decoration: none; }
-    .td-number a:hover { text-decoration: underline; }
+    .td-number a, .pr-title-link { color: var(--color-link); text-decoration: none; }
+    .td-number a:hover, .pr-title-link:hover { text-decoration: underline; }
     tr.pr { cursor: default; }
-    .td-review { cursor: pointer; }
-    .td-review:hover { text-decoration: underline; }
-    dialog { border: 1px solid #d0d7de; border-radius: 8px; padding: 1.2rem 1.4rem; min-width: 320px; max-width: 520px; box-shadow: 0 8px 24px rgba(0,0,0,.15); }
-    dialog::backdrop { background: rgba(0,0,0,.3); }
+    .review-label { cursor: pointer; }
+    .review-label:hover { text-decoration: underline; }
+    .review-approved { color: var(--color-review-approved); }
+    .review-changes_requested { color: var(--color-review-changes); }
+    dialog { border: 1px solid var(--color-border); border-radius: 8px; padding: 1.2rem 1.4rem; min-width: 320px; max-width: 520px; box-shadow: 0 8px 24px var(--color-dialog-shadow); background: var(--color-bg); color: var(--color-fg); }
+    dialog::backdrop { background: var(--color-backdrop); }
     #review-dialog h2 { margin: 0 0 1rem; font-size: .95rem; }
-    #review-dialog h3 { margin: .8rem 0 .3rem; font-size: .8rem; color: #656d76; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    #review-dialog h3 { margin: .8rem 0 .3rem; font-size: .8rem; color: var(--color-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
     #review-dialog ul { margin: 0; padding-left: 1rem; }
     #review-dialog li { margin-bottom: .4rem; font-size: .85rem; }
-    .popup-review-body { margin-top: .15rem; font-size: .78rem; color: #656d76; }
-    #review-dialog-close { float: right; background: none; border: none; font-size: 1rem; cursor: pointer; color: #656d76; padding: 0; line-height: 1; }
+    .popup-review-body { margin-top: .15rem; font-size: .78rem; color: var(--color-muted); }
+    #review-dialog-close { float: right; background: none; border: none; font-size: 1rem; cursor: pointer; color: var(--color-muted); padding: 0; line-height: 1; }
+    .dialog-toolbar { display: flex; align-items: center; gap: .4rem; margin-bottom: .6rem; font-size: .78rem; color: var(--color-muted); }
+    .switch { position: relative; display: inline-block; width: 28px; height: 16px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch .slider { position: absolute; inset: 0; background: var(--color-slider-bg); border-radius: 16px; transition: .2s; cursor: pointer; }
+    .switch .slider:before { content: ''; position: absolute; width: 10px; height: 10px; left: 3px; top: 3px; background: var(--color-slider-thumb); border-radius: 50%; transition: .2s; }
+    .switch input:checked + .slider { background: #0969da; }
+    .switch input:checked + .slider:before { transform: translateX(12px); }
+    .thread-resolved { opacity: .5; }
+    .thread-resolved .thread-label { font-size: .72rem; color: #656d76; margin-left: .3rem; }
+    .time-ago { font-size: .72rem; color: var(--color-time); margin-left: .3rem; }
+    .owners-pending { background: var(--color-owners-pending-bg); border: 1px solid var(--color-owners-pending-border); border-radius: 6px; padding: .4rem .6rem; margin-bottom: .6rem; font-size: .82rem; }
+    .owners-list { margin: .25rem 0 0 1rem; padding: 0; list-style: disc; font-size: .8rem; }
+    .owners-ok { background: var(--color-owners-ok-bg); border: 1px solid var(--color-owners-ok-border); border-radius: 6px; padding: .3rem .6rem; margin-bottom: .6rem; font-size: .82rem; }
+    .owners-tag { display: inline-block; font-size: .7rem; padding: .05rem .3rem; border-radius: 4px; text-decoration: none; color: inherit; }
+    .owners-tag.owners-pass { background: var(--color-owners-ok-bg); border: 1px solid var(--color-owners-ok-border); }
+    .owners-tag.owners-fail { background: var(--color-owners-pending-bg); border: 1px solid var(--color-owners-pending-border); }
+    .owners-tag.owners-running { background: var(--color-owners-running-bg); border: 1px solid var(--color-owners-running-border); }
+    .owners-running-banner { background: var(--color-owners-running-bg); border: 1px solid var(--color-owners-running-border); }
   </style>
 </head>
 <body>
@@ -68,16 +212,45 @@
     <h1>PR Dashboard</h1>
     <span id="subtitle" class="muted"></span>
     <div class="controls">
-      <button id="notifyToggle">🔔 通知</button>
+      <label class="switch" title="Only show my PRs"><input type="checkbox" id="me-toggle" checked><span class="slider"></span></label>
+      <span style="font-size:.82rem;color:#1f2328">Me</span>
+      <select id="days-select">
+        <option value="7">7d</option>
+        <option value="14" selected>14d</option>
+        <option value="30">30d</option>
+        <option value="90">90d</option>
+      </select>
+      <div class="refresh-group">
+        <label class="switch" title="Auto refresh"><input type="checkbox" id="auto-refresh-toggle" checked><span class="slider"></span></label>
+        <select id="refresh-interval">
+          <option value="60">1m</option>
+          <option value="300" selected>5m</option>
+          <option value="600">10m</option>
+          <option value="1800">30m</option>
+        </select>
+        <button id="refresh">Refresh</button>
+      </div>
+      <button id="notifyToggle">🔔 Notify</button>
       <button id="markRead">Mark all read</button>
-      <button id="refresh">Refresh</button>
     </div>
   </header>
   <div id="error"></div>
-  <table>
+  <table id="main-table">
+    <colgroup id="colgroup">
+      <col style="width:22px">
+      <col style="width:72px">
+      <col style="width:52px">
+      <col style="width:90px">
+      <col style="width:110px">
+      <col style="width:120px">
+      <col style="width:72px">
+      <col style="width:88px">
+      <col style="width:88px">
+      <col>
+    </colgroup>
     <thead>
       <tr>
-        <th></th>
+        <th><div class="col-resizer"></div></th>
         <th>
           <div class="th-filter-wrap">
             State <span class="th-arrow" id="state-arrow">▾</span>
@@ -88,9 +261,20 @@
               <label><input type="checkbox" value="merged"> Merged</label>
             </div>
           </div>
+          <div class="col-resizer"></div>
         </th>
-        <th id="th-number" class="sortable">PR# <span class="sort-dir"></span></th>
-        <th id="th-author" class="sortable">Author <span class="sort-dir"></span></th>
+        <th id="th-number" class="sortable">PR# <span class="sort-dir"></span><div class="col-resizer"></div></th>
+        <th>
+          <div class="th-filter-wrap">
+            <span id="th-author" class="sortable">Author <span class="sort-dir"></span></span>
+            <span class="th-arrow" id="author-arrow">▾</span>
+            <div class="th-dropdown" id="author-dropdown">
+              <label id="author-all-label"><input type="checkbox" id="author-all" checked> All</label>
+              <div id="author-list"></div>
+            </div>
+          </div>
+          <div class="col-resizer"></div>
+        </th>
         <th>
           <div class="th-filter-wrap">
             Participation <span class="th-arrow" id="participation-arrow">▾</span>
@@ -102,11 +286,12 @@
               <label><input type="radio" name="ptype" value="commenter"> Commenter</label>
             </div>
           </div>
+          <div class="col-resizer"></div>
         </th>
-        <th>Review</th>
-        <th>CI</th>
-        <th id="th-created" class="sortable">Created <span class="sort-dir"></span></th>
-        <th id="th-updated" class="sortable">Updated <span class="sort-dir"></span></th>
+        <th>Review<div class="col-resizer"></div></th>
+        <th>CI<div class="col-resizer"></div></th>
+        <th id="th-created" class="sortable">Created <span class="sort-dir"></span><div class="col-resizer"></div></th>
+        <th id="th-updated" class="sortable">Updated <span class="sort-dir"></span><div class="col-resizer"></div></th>
         <th>PR</th>
       </tr>
     </thead>
@@ -117,6 +302,10 @@
   <dialog id="review-dialog">
     <button id="review-dialog-close" title="Close">✕</button>
     <h2 id="review-dialog-title"></h2>
+    <div class="dialog-toolbar">
+      <label class="switch"><input type="checkbox" id="show-closed-toggle"><span class="slider"></span></label>
+      Show closed reviews
+    </div>
     <div id="review-dialog-content"></div>
   </dialog>
 
