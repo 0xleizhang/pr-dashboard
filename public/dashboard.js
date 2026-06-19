@@ -3,6 +3,18 @@ import { isNewActivity } from './shared.js';
 const SEEN_KEY = 'pr-dashboard:seen';
 const PREFS_KEY = 'pr-dashboard:prefs';
 const THEME_KEY = 'pr-dashboard:theme';
+const COL_VISIBILITY_KEY = 'pr-dashboard:col-visibility';
+
+const HIDEABLE_COLS = [
+  { idx: 1, label: 'State' },
+  { idx: 2, label: 'PR#' },
+  { idx: 3, label: 'Author' },
+  { idx: 4, label: 'Participation' },
+  { idx: 5, label: 'Review' },
+  { idx: 6, label: 'CI' },
+  { idx: 7, label: 'Created' },
+  { idx: 8, label: 'Updated' },
+];
 const THEME_STATES = ['auto', 'dark', 'light'];
 const THEME_LABELS = { auto: '💻 Auto', dark: '🌙 Dark', light: '☀️ Light' };
 
@@ -139,6 +151,59 @@ function saveColWidths(widths) {
   localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(widths));
 }
 
+function loadColVisibility() {
+  try { return JSON.parse(localStorage.getItem(COL_VISIBILITY_KEY)) || {}; }
+  catch { return {}; }
+}
+
+function saveColVisibility(v) {
+  localStorage.setItem(COL_VISIBILITY_KEY, JSON.stringify(v));
+}
+
+function applyColVisibility(v) {
+  const table = document.getElementById('main-table');
+  const cols = document.querySelectorAll('#colgroup col');
+  const savedWidths = loadColWidths();
+  for (const { idx } of HIDEABLE_COLS) {
+    const hidden = v[idx] === false;
+    table.classList.toggle(`hide-col-${idx}`, hidden);
+    if (cols[idx]) {
+      cols[idx].style.width = hidden ? '0' : (savedWidths[idx] != null ? savedWidths[idx] + 'px' : '');
+    }
+  }
+}
+
+function setupColumnsDropdown() {
+  const btn = document.getElementById('col-visibility-btn');
+  const menu = document.getElementById('col-visibility-dropdown');
+  const v = loadColVisibility();
+
+  for (const { idx, label } of HIDEABLE_COLS) {
+    const lbl = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = v[idx] !== false;
+    cb.addEventListener('change', () => {
+      const cur = loadColVisibility();
+      if (cb.checked) delete cur[idx];
+      else cur[idx] = false;
+      saveColVisibility(cur);
+      applyColVisibility(cur);
+    });
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(' ' + label));
+    menu.appendChild(lbl);
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!menu.contains(e.target) && !btn.contains(e.target)) menu.classList.remove('open');
+  });
+}
+
 (function initColResize() {
   const cols = document.querySelectorAll('#colgroup col');
   const saved = loadColWidths();
@@ -186,6 +251,8 @@ function saveColWidths(widths) {
     });
   });
 })();
+applyColVisibility(loadColVisibility());
+setupColumnsDropdown();
 // ─────────────────────────────────────────────────────────────
 
 function formatTime(iso) {
