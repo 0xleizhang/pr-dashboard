@@ -4,6 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PR Dashboard</title>
+  <script>
+    (function() {
+      var t = localStorage.getItem('pr-dashboard:theme');
+      if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <style>
     :root {
       --color-bg: #ffffff;
@@ -212,6 +218,7 @@
     <h1>PR Dashboard</h1>
     <span id="subtitle" class="muted"></span>
     <div class="controls">
+      <button id="theme-toggle">💻 Auto</button>
       <label class="switch" title="Only show my PRs"><input type="checkbox" id="me-toggle" checked><span class="slider"></span></label>
       <span style="font-size:.82rem;color:#1f2328">Me</span>
       <select id="days-select">
