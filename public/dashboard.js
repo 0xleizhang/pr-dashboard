@@ -172,6 +172,8 @@ function applyColVisibility(v) {
       cols[idx].style.width = hidden ? '0' : (savedWidths[idx] != null ? savedWidths[idx] + 'px' : '');
     }
   }
+  // Always let the PR title column (last) auto-fill remaining space
+  if (cols[9]) cols[9].style.width = '';
 }
 
 function setupColumnsDropdown() {
