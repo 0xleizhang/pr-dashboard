@@ -6,14 +6,14 @@ const THEME_KEY = 'pr-dashboard:theme';
 const COL_VISIBILITY_KEY = 'pr-dashboard:col-visibility';
 
 const HIDEABLE_COLS = [
-  { idx: 1, label: 'State' },
-  { idx: 2, label: 'PR#' },
-  { idx: 3, label: 'Author' },
-  { idx: 4, label: 'Participation' },
-  { idx: 5, label: 'Review' },
-  { idx: 6, label: 'CI' },
-  { idx: 7, label: 'Created' },
-  { idx: 8, label: 'Updated' },
+  { idx: 1, label: 'State',         defaultW: 72  },
+  { idx: 2, label: 'PR#',           defaultW: 52  },
+  { idx: 3, label: 'Author',        defaultW: 90  },
+  { idx: 4, label: 'Participation', defaultW: 110 },
+  { idx: 5, label: 'Review',        defaultW: 120 },
+  { idx: 6, label: 'CI',            defaultW: 72  },
+  { idx: 7, label: 'Created',       defaultW: 88  },
+  { idx: 8, label: 'Updated',       defaultW: 88  },
 ];
 
 const THEME_STATES = ['auto', 'dark', 'light'];
@@ -165,14 +165,20 @@ function applyColVisibility(v) {
   const table = document.getElementById('main-table');
   const cols = document.querySelectorAll('#colgroup col');
   const savedWidths = loadColWidths();
-  for (const { idx } of HIDEABLE_COLS) {
+  for (const { idx, defaultW } of HIDEABLE_COLS) {
     const hidden = v[idx] === false;
     table.classList.toggle(`hide-col-${idx}`, hidden);
     if (cols[idx]) {
-      cols[idx].style.width = hidden ? '0' : (savedWidths[idx] != null ? savedWidths[idx] + 'px' : '');
+      // visibility:collapse is the CSS-spec way to remove a column's space;
+      // setting width:0 is unreliable with table-layout:fixed.
+      cols[idx].style.visibility = hidden ? 'collapse' : '';
+      if (!hidden) {
+        const w = savedWidths[idx] > 0 ? savedWidths[idx] : defaultW;
+        cols[idx].style.width = w + 'px';
+      }
     }
   }
-  // Always let the PR title column (last) auto-fill remaining space
+  // PR title column always auto-fills remaining space
   if (cols[9]) cols[9].style.width = '';
 }
 
@@ -211,9 +217,9 @@ function setupColumnsDropdown() {
   const cols = document.querySelectorAll('#colgroup col');
   const saved = loadColWidths();
 
-  // Restore saved widths
+  // Restore saved widths (skip last col — it always auto-fills)
   cols.forEach((col, i) => {
-    if (saved[i] != null) col.style.width = saved[i] + 'px';
+    if (i < cols.length - 1 && saved[i] != null) col.style.width = saved[i] + 'px';
   });
 
   // Attach drag logic to every .col-resizer handle
@@ -243,8 +249,9 @@ function setupColumnsDropdown() {
         // Save all current widths
         const widths = {};
         cols.forEach((c, i) => {
+          if (i === cols.length - 1) return; // skip flex PR title column
           const w = parseInt(c.style.width);
-          if (!isNaN(w) && w > 0) widths[i] = w;  // skip hidden (width=0) cols
+          if (!isNaN(w) && w > 0) widths[i] = w;
         });
         saveColWidths(widths);
       }
