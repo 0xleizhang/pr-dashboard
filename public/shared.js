@@ -88,6 +88,25 @@ export function isNewActivity(lastSeen, updatedAt) {
   return new Date(updatedAt).getTime() > new Date(lastSeen).getTime();
 }
 
+// Returns { author, ts } of the most recent human activity (comment/review/thread),
+// or null if none found. Used to determine if the logged-in user self-triggered an update.
+export function latestActivityOf(pr) {
+  const events = [];
+  if (pr.latestComment?.createdAt) {
+    events.push({ author: pr.latestComment.author, ts: pr.latestComment.createdAt });
+  }
+  for (const r of pr.reviewDetail?.reviewers ?? []) {
+    if (r.submittedAt) events.push({ author: r.login, ts: r.submittedAt });
+  }
+  for (const tg of pr.reviewDetail?.threadGroups ?? []) {
+    for (const c of tg.comments ?? []) {
+      if (c.createdAt) events.push({ author: c.author, ts: c.createdAt });
+    }
+  }
+  if (!events.length) return null;
+  return events.reduce((best, e) => (e.ts > best.ts ? e : best));
+}
+
 export function daysAgoISO(days, now = new Date()) {
   const d = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   return d.toISOString().slice(0, 10);

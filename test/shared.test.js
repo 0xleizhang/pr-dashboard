@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapReviewStatus, mapCIStatus, isNewActivity, daysAgoISO, buildSearchQuery, buildGraphQLQuery, parseGraphQLResponse, mergeLabels } from '../public/shared.js';
+import { mapReviewStatus, mapCIStatus, isNewActivity, latestActivityOf, daysAgoISO, buildSearchQuery, buildGraphQLQuery, parseGraphQLResponse, mergeLabels } from '../public/shared.js';
 
 test('mapReviewStatus: approved', () => {
   assert.equal(mapReviewStatus({ reviewDecision: 'APPROVED' }), 'approved');
@@ -74,6 +74,28 @@ test('isNewActivity: true when updated after last seen', () => {
 test('isNewActivity: false when not updated since last seen', () => {
   assert.equal(isNewActivity('2026-06-12T00:00:00Z', '2026-06-12T00:00:00Z'), false);
   assert.equal(isNewActivity('2026-06-13T00:00:00Z', '2026-06-12T00:00:00Z'), false);
+});
+
+test('latestActivityOf: returns null when no activity', () => {
+  assert.equal(latestActivityOf({ latestComment: null, reviewDetail: { reviewers: [], threadGroups: [] } }), null);
+});
+test('latestActivityOf: returns latest comment', () => {
+  const pr = { latestComment: { author: 'alice', createdAt: '2026-06-12T10:00:00Z' }, reviewDetail: { reviewers: [], threadGroups: [] } };
+  assert.deepEqual(latestActivityOf(pr), { author: 'alice', ts: '2026-06-12T10:00:00Z' });
+});
+test('latestActivityOf: prefers most recent across comments, reviews, threads', () => {
+  const pr = {
+    latestComment: { author: 'alice', createdAt: '2026-06-12T08:00:00Z' },
+    reviewDetail: {
+      reviewers: [{ login: 'bob', submittedAt: '2026-06-12T09:00:00Z' }],
+      threadGroups: [{ comments: [{ author: 'carol', createdAt: '2026-06-12T10:00:00Z' }] }],
+    },
+  };
+  assert.deepEqual(latestActivityOf(pr), { author: 'carol', ts: '2026-06-12T10:00:00Z' });
+});
+test('latestActivityOf: handles missing reviewDetail gracefully', () => {
+  const pr = { latestComment: { author: 'alice', createdAt: '2026-06-12T10:00:00Z' } };
+  assert.deepEqual(latestActivityOf(pr), { author: 'alice', ts: '2026-06-12T10:00:00Z' });
 });
 
 const NOW = new Date('2026-06-12T00:00:00Z');

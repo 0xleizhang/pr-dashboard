@@ -1,4 +1,4 @@
-import { isNewActivity } from './shared.js';
+import { isNewActivity, latestActivityOf } from './shared.js';
 
 const SEEN_KEY = 'pr-dashboard:seen';
 const PREFS_KEY = 'pr-dashboard:prefs';
@@ -64,6 +64,7 @@ function prState(pr) {
 }
 
 let allPrs = [];
+let currentUser = '';
 
 function loadSeen() {
   try { return JSON.parse(localStorage.getItem(SEEN_KEY)) || {}; }
@@ -609,12 +610,36 @@ function notifyChanges(prevPrs, nextPrs) {
   for (const pr of nextPrs) {
     const prev = prevMap.get(pr.key);
     if (pr.updatedAt && (!prev || pr.updatedAt > prev)) {
+      const latest = latestActivityOf(pr);
+      const triggeredByMe = latest ? latest.author === currentUser : pr.author === currentUser;
+      if (triggeredByMe) continue;
       const snip = (pr.latestComment?.body ?? '').replace(/\s+/g, ' ').slice(0, 100);
       const title = pr.latestComment?.author ? `💬 ${pr.latestComment.author} on ${pr.title}` : `🔔 ${pr.title}`;
-      const n = new Notification(title, { body: snip || 'PR updated', tag: pr.url });
+      const body = [snip || 'PR updated', pr.url].filter(Boolean).join('\n');
+      const n = new Notification(title, { body, tag: pr.url });
       n.onclick = () => { window.open(pr.url, '_blank', 'noopener'); n.close(); };
     }
   }
+}
+
+// Auto-mark PRs as seen when the latest activity was triggered by the current user,
+// so self-triggered updates (own commits, own comments) never show an unread dot.
+function autoMarkSelfTriggered(prs) {
+  if (!currentUser) return;
+  const seen = loadSeen();
+  let changed = false;
+  for (const pr of prs) {
+    if (!isNewActivity(seen[pr.key], pr.updatedAt)) continue;
+    const latest = latestActivityOf(pr);
+    // If we found a recent activity event, check its author.
+    // If no activity event found (e.g. a commit push), fall back to the PR author.
+    const triggeredByMe = latest ? latest.author === currentUser : pr.author === currentUser;
+    if (triggeredByMe) {
+      seen[pr.key] = pr.updatedAt;
+      changed = true;
+    }
+  }
+  if (changed) saveSeen(seen);
 }
 
 async function load() {
@@ -627,6 +652,8 @@ async function load() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     els.subtitle.textContent = `${data.user} @ ${data.org} · ${data.prs.length} PRs`;
+    currentUser = data.user;
+    autoMarkSelfTriggered(data.prs);
     notifyChanges(allPrs, data.prs);
     allPrs = data.prs;
     buildAuthorFilter(allPrs);
@@ -656,12 +683,17 @@ function isNotifyOn() {
 
 function applyNotifyUI() {
   if (isNotifyOn()) {
-    notifyToggle.textContent = '🔕 Mute';
+    notifyToggle.textContent = '🔔 Notify On';
     notifyToggle.classList.remove('off');
   } else {
-    notifyToggle.textContent = '🔔 Notify';
+    notifyToggle.textContent = '🔔 Notify Off';
     notifyToggle.classList.add('off');
   }
+}
+
+function sendTestNotification() {
+  const n = new Notification('🔔 PR Dashboard notifications enabled', { body: 'You will receive PR update alerts' });
+  setTimeout(() => n.close(), 4000);
 }
 
 async function enableNotifications() {
@@ -673,11 +705,13 @@ async function enableNotifications() {
   if (Notification.permission === 'granted') {
     localStorage.setItem(NOTIFY_KEY, 'on');
     applyNotifyUI();
+    sendTestNotification();
     return;
   }
   const perm = await Notification.requestPermission();
   localStorage.setItem(NOTIFY_KEY, perm === 'granted' ? 'on' : 'off');
   applyNotifyUI();
+  if (perm === 'granted') sendTestNotification();
 }
 
 notifyToggle.addEventListener('click', () => {
