@@ -195,7 +195,9 @@
     #review-dialog ul { margin: 0; padding-left: 1rem; }
     #review-dialog li { margin-bottom: .4rem; font-size: .85rem; }
     .popup-review-body { margin-top: .15rem; font-size: .78rem; color: var(--color-muted); }
-    #review-dialog-close { float: right; background: none; border: none; font-size: 1rem; cursor: pointer; color: var(--color-muted); padding: 0; line-height: 1; }
+    #review-dialog-close, #owners-dialog-close { float: right; background: none; border: none; font-size: 1rem; cursor: pointer; color: var(--color-muted); padding: 0; line-height: 1; }
+    #owners-dialog { max-width: 340px; font-size: .85rem; }
+    #owners-dialog-content .owners-pending { margin-bottom: 0; }
     .dialog-toolbar { display: flex; align-items: center; gap: .4rem; margin-bottom: .6rem; font-size: .78rem; color: var(--color-muted); }
     .switch { position: relative; display: inline-block; width: 28px; height: 16px; }
     .switch input { opacity: 0; width: 0; height: 0; }
@@ -325,6 +327,11 @@
     <tbody id="rows"></tbody>
   </table>
   <p id="empty" class="muted" style="display:none">No PRs found.</p>
+
+  <dialog id="owners-dialog">
+    <button id="owners-dialog-close" title="Close">✕</button>
+    <div id="owners-dialog-content"></div>
+  </dialog>
 
   <dialog id="review-dialog">
     <button id="review-dialog-close" title="Close">✕</button>

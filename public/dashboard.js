@@ -428,6 +428,11 @@ const showClosedToggle = document.getElementById('show-closed-toggle');
 document.getElementById('review-dialog-close').addEventListener('click', () => reviewDialog.close());
 reviewDialog.addEventListener('click', (e) => { if (e.target === reviewDialog) reviewDialog.close(); });
 
+const ownersDialog = document.getElementById('owners-dialog');
+const ownersDialogContent = document.getElementById('owners-dialog-content');
+document.getElementById('owners-dialog-close').addEventListener('click', () => ownersDialog.close());
+ownersDialog.addEventListener('click', (e) => { if (e.target === ownersDialog) ownersDialog.close(); });
+
 let currentReviewPr = null;
 showClosedToggle.addEventListener('change', () => { if (currentReviewPr) renderReviewContent(currentReviewPr); });
 reviewDialogContent.addEventListener('click', e => {
@@ -579,13 +584,35 @@ function showReviewDialog(pr) {
 function ownersTag(pr) {
   const op = pr.ownersPending;
   if (!op) return '';
-  const href = op.checkUrl ? ` href="${escapeHtml(op.checkUrl)}" target="_blank" rel="noopener"` : '';
-  const tag = op.status === 'pass'
-    ? `<a class="owners-tag owners-pass"${href}>owners ✅</a>`
-    : op.status === 'fail'
-      ? `<a class="owners-tag owners-fail"${href}>owners ⏳</a>`
-      : `<a class="owners-tag owners-running"${href}>owners 🟡</a>`;
-  return `<div>${tag}</div>`;
+  const cls = op.status === 'pass' ? 'owners-pass' : op.status === 'fail' ? 'owners-fail' : 'owners-running';
+  const icon = op.status === 'pass' ? '✅' : op.status === 'fail' ? '⏳' : '🟡';
+  return `<div><button class="owners-tag ${cls}" type="button">owners ${icon}</button></div>`;
+}
+
+function showOwnersDialog(pr) {
+  const op = pr.ownersPending;
+  if (!op) return;
+  const link = op.checkUrl
+    ? `<a href="${escapeHtml(op.checkUrl)}" target="_blank" rel="noopener">owners-files ↗</a>`
+    : 'owners-files';
+  let html = '';
+  if (op.status === 'pass') {
+    html = `<div class="owners-ok">✅ OWNERS approved — ${link}</div>`;
+  } else if (op.status === 'fail') {
+    html = `<div class="owners-pending"><strong>⏳ Pending OWNERS approval</strong> — ${link}`;
+    if (op.pending?.length) {
+      html += `<ul class="owners-list">`;
+      for (const t of op.pending) {
+        html += `<li><a href="${escapeHtml(t.url)}" target="_blank" rel="noopener">${escapeHtml(t.name)}</a></li>`;
+      }
+      html += `</ul>`;
+    }
+    html += `</div>`;
+  } else {
+    html = `<div class="owners-pending owners-running-banner"><strong>🟡 OWNERS check running</strong> — ${link}</div>`;
+  }
+  ownersDialogContent.innerHTML = html;
+  ownersDialog.showModal();
 }
 
 function render() {
@@ -623,7 +650,7 @@ function render() {
       tr.querySelector('.dot')?.remove();
     });
     tr.querySelector('.review-label').addEventListener('click', (e) => { e.stopPropagation(); showReviewDialog(pr); });
-    tr.querySelector('.owners-tag')?.addEventListener('click', (e) => e.stopPropagation());
+    tr.querySelector('.owners-tag')?.addEventListener('click', (e) => { e.stopPropagation(); showOwnersDialog(pr); });
     els.rows.appendChild(tr);
   }
 }
