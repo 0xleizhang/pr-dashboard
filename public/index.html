@@ -152,9 +152,9 @@
     .muted { color: var(--color-muted); }
     .tag { display: inline-block; padding: 0 .35rem; margin-right: .2rem; border-radius: 4px; font-size: .72rem; background: var(--color-surface-2); }
     .repo { color: var(--color-muted); font-size: .8rem; }
-    .jira-id { font-size: .75rem; margin-top: .1rem; }
-    .jira-id a { color: var(--color-muted); text-decoration: none; }
-    .jira-id a:hover { text-decoration: underline; }
+    .pr-meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: .25rem; margin-top: .1rem; }
+    .jira-link { font-size: .75rem; color: var(--color-muted); text-decoration: none; white-space: nowrap; }
+    .jira-link:hover { text-decoration: underline; }
     #error { background: var(--color-error-bg); border: 1px solid var(--color-error-border); padding: .6rem; border-radius: 6px; margin-bottom: 1rem; display: none; }
     .ci-pass { color: var(--color-ci-pass); }
     .ci-fail { color: var(--color-ci-fail); }
@@ -216,7 +216,7 @@
     .pr-comments-section { margin-top: .75rem; padding-top: .55rem; border-top: 1px solid var(--color-border-subtle); }
     .pr-comments-label { font-size: .72rem; color: var(--color-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: .35rem; }
     .expand-btn { background: none; border: none; padding: 0; font-size: inherit; color: var(--color-link); cursor: pointer; }
-    .gh-labels { margin-top: .15rem; display: flex; flex-wrap: wrap; gap: .2rem; }
+    .gh-labels { display: contents; }
     .gh-label { display: inline-block; font-size: .65rem; padding: .05rem .35rem; border-radius: 10px; font-weight: 500; white-space: nowrap; }
     .owners-pending { background: var(--color-owners-pending-bg); border: 1px solid var(--color-owners-pending-border); border-radius: 6px; padding: .4rem .6rem; margin-bottom: .6rem; font-size: .82rem; }
     .owners-list { margin: .25rem 0 0 1rem; padding: 0; list-style: disc; font-size: .8rem; }

@@ -16,6 +16,8 @@ const HIDEABLE_COLS = [
   { idx: 8, label: 'Updated',       defaultW: 88  },
 ];
 
+const JIRA_ICON = '<svg width="11" height="11" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-.1em;margin-right:.2em"><path d="M15.78.42L.42 15.78a1.44 1.44 0 000 2.04l15.36 15.36a1.44 1.44 0 002.04 0l15.36-15.36a1.44 1.44 0 000-2.04L17.82.42a1.44 1.44 0 00-2.04 0z" fill="#2684FF"/><path d="M16.8 8.5l-5.5 5.5 2.75 2.75L16.8 14l2.75 2.75L22.3 14z" fill="#0052CC"/></svg>';
+
 const THEME_STATES = ['auto', 'dark', 'light'];
 const THEME_LABELS = { auto: '💻 Auto', dark: '🌙 Dark', light: '☀️ Light' };
 
@@ -611,8 +613,7 @@ function render() {
       <td>
         <div><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener" class="pr-title-link">${escapeHtml(pr.title)}</a></div>
         <div class="repo">${escapeHtml(pr.repo)}</div>
-        ${(() => { const id = extractJiraId(pr.title); return id ? `<div class="jira-id"><a href="https://compass-tech.atlassian.net/browse/${escapeHtml(id)}" target="_blank" rel="noopener">🎫 ${escapeHtml(id)}</a></div>` : ''; })()}
-        ${pr.ghLabels?.length ? `<div class="gh-labels">${ghLabelHtml(pr.ghLabels)}</div>` : ''}
+        ${(() => { const id = extractJiraId(pr.title); const labels = ghLabelHtml(pr.ghLabels); const jira = id ? `<a class="jira-link" href="https://compass-tech.atlassian.net/browse/${escapeHtml(id)}" target="_blank" rel="noopener">${JIRA_ICON}${escapeHtml(id)}</a>` : ''; return (jira || labels) ? `<div class="pr-meta-row">${jira}${labels}</div>` : ''; })()}
         ${pr.labels.includes('author') ? authorInfo(pr) : ''}
       </td>`;
     tr.querySelector('.td-number a').addEventListener('click', () => {
