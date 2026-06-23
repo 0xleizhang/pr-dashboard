@@ -480,28 +480,6 @@ function renderReviewContent(pr) {
 
   let html = '';
 
-  const op = pr.ownersPending;
-  if (op) {
-    const link = op.checkUrl
-      ? `<a href="${escapeHtml(op.checkUrl)}" target="_blank" rel="noopener">owners-files ↗</a>`
-      : 'owners-files';
-    if (op.status === 'pass') {
-      html += `<div class="owners-ok">✅ OWNERS approved — ${link}</div>`;
-    } else if (op.status === 'fail') {
-      html += `<div class="owners-pending"><strong>⏳ Pending OWNERS approval</strong> — ${link}`;
-      if (op.pending?.length) {
-        html += `<ul class="owners-list">`;
-        for (const t of op.pending) {
-          html += `<li><a href="${escapeHtml(t.url)}" target="_blank" rel="noopener">${escapeHtml(t.name)}</a></li>`;
-        }
-        html += `</ul>`;
-      }
-      html += `</div>`;
-    } else {
-      html += `<div class="owners-running-banner owners-pending"><strong>🟡 OWNERS check running</strong> — ${link}</div>`;
-    }
-  }
-
   const visibleReviewers = reviewers.filter(r => !(r.state === 'DISMISSED' && !showClosed));
 
   for (const r of visibleReviewers) {
