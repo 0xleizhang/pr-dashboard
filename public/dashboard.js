@@ -428,6 +428,18 @@ reviewDialog.addEventListener('click', (e) => { if (e.target === reviewDialog) r
 
 let currentReviewPr = null;
 showClosedToggle.addEventListener('change', () => { if (currentReviewPr) renderReviewContent(currentReviewPr); });
+reviewDialogContent.addEventListener('click', e => {
+  if (!e.target.classList.contains('expand-btn')) return;
+  const wrap = e.target.closest('.truncatable');
+  wrap.querySelector('.txt-short').hidden = true;
+  wrap.querySelector('.txt-full').hidden = false;
+  e.target.remove();
+});
+
+function truncatableHtml(text, max) {
+  if (text.length <= max) return escapeHtml(text);
+  return `<span class="truncatable"><span class="txt-short">${escapeHtml(text.slice(0, max))}</span><span class="txt-full" hidden>${escapeHtml(text)}</span><button class="expand-btn" type="button">… more</button></span>`;
+}
 
 function timeAgo(iso) {
   if (!iso) return '';
@@ -483,7 +495,7 @@ function renderReviewContent(pr) {
     const ago = r.submittedAt ? `<span class="time-ago">${timeAgo(r.submittedAt)}</span>` : '';
     html += `<div class="review-batch-header">${nameHtml} &nbsp;${escapeHtml(r.label)} ${ago}</div>`;
     if (r.body.trim()) {
-      html += `<div class="review-batch-body">${escapeHtml(r.body.trim().slice(0, 300))}</div>`;
+      html += `<div class="review-batch-body">${truncatableHtml(r.body.trim(), 300)}</div>`;
     }
     for (const t of r.threads) {
       if (t.isResolved && !showClosed) continue;
@@ -496,7 +508,7 @@ function renderReviewContent(pr) {
         const cName = c.url
           ? `<a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">@${escapeHtml(c.author)}</a>`
           : `@${escapeHtml(c.author)}`;
-        html += `<div class="thread-comment"><strong>${cName}</strong>: ${escapeHtml(snip.slice(0, 200))}${snip.length > 200 ? '…' : ''} ${cAgo}</div>`;
+        html += `<div class="thread-comment"><strong>${cName}</strong>: ${truncatableHtml(snip, 200)} ${cAgo}</div>`;
       }
       html += `</div>`;
     }
@@ -518,7 +530,7 @@ function renderReviewContent(pr) {
       const nameHtml = c.url
         ? `<a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">@${escapeHtml(c.author)}</a>`
         : `@${escapeHtml(c.author)}`;
-      html += `<div class="thread-comment"><strong>${nameHtml}</strong>: ${escapeHtml(snip.slice(0, 200))}${snip.length > 200 ? '…' : ''} ${ago}</div>`;
+      html += `<div class="thread-comment"><strong>${nameHtml}</strong>: ${truncatableHtml(snip, 200)} ${ago}</div>`;
     }
     html += `</div>`;
   }
