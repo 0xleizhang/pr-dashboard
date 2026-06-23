@@ -446,11 +446,10 @@ function timeAgo(iso) {
 
 function renderReviewContent(pr) {
   const showClosed = showClosedToggle.checked;
-  const { reviewers, comments, threadGroups = [] } = pr.reviewDetail;
+  const { reviewers, comments, orphanThreads = [] } = pr.reviewDetail;
 
   let html = '';
 
-  // OWNERS pending block
   const op = pr.ownersPending;
   if (op) {
     const link = op.checkUrl
@@ -473,62 +472,71 @@ function renderReviewContent(pr) {
     }
   }
 
-  // Flatten all items into a unified list sorted by time
-  const items = [];
+  const visibleReviewers = reviewers.filter(r => !(r.state === 'DISMISSED' && !showClosed));
 
-  for (const r of reviewers) {
+  for (const r of visibleReviewers) {
     const isDismissed = r.state === 'DISMISSED';
-    if (isDismissed && !showClosed) continue;
-    items.push({ kind: 'review', ts: r.submittedAt, isDismissed, r });
-  }
-
-  const closedThreadCount = threadGroups.filter(t => t.isResolved).length;
-  for (const t of threadGroups) {
-    if (t.isResolved && !showClosed) continue;
-    for (const c of t.comments) {
-      items.push({ kind: 'thread', ts: c.createdAt, isResolved: t.isResolved, c });
+    html += `<div class="review-batch${isDismissed ? ' review-batch-dismissed' : ''}">`;
+    const nameHtml = r.url
+      ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">@${escapeHtml(r.login)}</a>`
+      : `@${escapeHtml(r.login)}`;
+    const ago = r.submittedAt ? `<span class="time-ago">${timeAgo(r.submittedAt)}</span>` : '';
+    html += `<div class="review-batch-header">${nameHtml} &nbsp;${escapeHtml(r.label)} ${ago}</div>`;
+    if (r.body.trim()) {
+      html += `<div class="review-batch-body">${escapeHtml(r.body.trim().slice(0, 300))}</div>`;
     }
-  }
-
-  for (const c of comments) {
-    items.push({ kind: 'comment', ts: c.createdAt, c });
-  }
-
-  items.sort((a, b) => new Date(a.ts || 0) - new Date(b.ts || 0));
-
-  if (items.length) {
-    html += '<ul>';
-    for (const item of items) {
-      const ago = item.ts ? `<span class="time-ago">${timeAgo(item.ts)}</span>` : '';
-      if (item.kind === 'review') {
-        const { r, isDismissed } = item;
-        const nameHtml = r.url
-          ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.login)}</a>`
-          : escapeHtml(r.login);
-        html += `<li${isDismissed ? ' class="thread-resolved"' : ''}><strong>${nameHtml}</strong> — ${r.label} ${ago}`;
-        if (r.body.trim()) html += `<div class="popup-review-body">${escapeHtml(r.body.trim().slice(0, 200))}</div>`;
-        html += '</li>';
-      } else if (item.kind === 'thread') {
-        const { c, isResolved } = item;
+    for (const t of r.threads) {
+      if (t.isResolved && !showClosed) continue;
+      const fileLabel = t.line != null ? `${t.path}:${t.line}` : t.path;
+      html += `<div class="file-group${t.isResolved ? ' thread-resolved' : ''}">`;
+      html += `<div class="file-path">${escapeHtml(fileLabel)}</div>`;
+      for (const c of t.comments) {
         const snip = c.body.replace(/\s+/g, ' ').trim();
-        const nameHtml = c.url
+        const cAgo = c.createdAt ? `<span class="time-ago">${timeAgo(c.createdAt)}</span>` : '';
+        const cName = c.url
           ? `<a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">@${escapeHtml(c.author)}</a>`
           : `@${escapeHtml(c.author)}`;
-        html += `<li${isResolved ? ' class="thread-resolved"' : ''}><strong>${nameHtml}</strong>${isResolved ? ' <span class="thread-label">(resolved)</span>' : ''}: ${escapeHtml(snip.slice(0, 200))}${snip.length > 200 ? '…' : ''} ${ago}</li>`;
-      } else {
-        const { c } = item;
-        const snip = c.body.replace(/\s+/g, ' ').trim();
-        const nameHtml = c.url
-          ? `<a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">@${escapeHtml(c.author)}</a>`
-          : `@${escapeHtml(c.author)}`;
-        html += `<li><strong>${nameHtml}</strong>: ${escapeHtml(snip.slice(0, 200))}${snip.length > 200 ? '…' : ''} ${ago}</li>`;
+        html += `<div class="thread-comment"><strong>${cName}</strong>: ${escapeHtml(snip.slice(0, 200))}${snip.length > 200 ? '…' : ''} ${cAgo}</div>`;
       }
+      html += `</div>`;
     }
-    html += '</ul>';
+    html += `</div>`;
   }
 
-  if (!showClosed && closedThreadCount > 0 && !items.some(i => i.kind === 'thread' && i.isResolved)) {
-    html += `<p class="muted" style="font-size:.78rem">${closedThreadCount} resolved thread${closedThreadCount > 1 ? 's' : ''} hidden.</p>`;
+  let resolvedCount = 0;
+  for (const r of reviewers) resolvedCount += r.threads.filter(t => t.isResolved).length;
+  resolvedCount += orphanThreads.filter(t => t.isResolved).length;
+  if (!showClosed && resolvedCount > 0) {
+    html += `<p class="muted" style="font-size:.78rem">${resolvedCount} resolved thread${resolvedCount > 1 ? 's' : ''} hidden.</p>`;
+  }
+
+  if (comments.length > 0) {
+    html += `<div class="pr-comments-section"><div class="pr-comments-label">PR comments</div>`;
+    for (const c of comments) {
+      const snip = c.body.replace(/\s+/g, ' ').trim();
+      const ago = c.createdAt ? `<span class="time-ago">${timeAgo(c.createdAt)}</span>` : '';
+      const nameHtml = c.url
+        ? `<a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">@${escapeHtml(c.author)}</a>`
+        : `@${escapeHtml(c.author)}`;
+      html += `<div class="thread-comment"><strong>${nameHtml}</strong>: ${escapeHtml(snip.slice(0, 200))}${snip.length > 200 ? '…' : ''} ${ago}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  for (const t of orphanThreads) {
+    if (t.isResolved && !showClosed) continue;
+    const fileLabel = t.line != null ? `${t.path}:${t.line}` : t.path;
+    html += `<div class="file-group${t.isResolved ? ' thread-resolved' : ''}">`;
+    html += `<div class="file-path">${escapeHtml(fileLabel)}</div>`;
+    for (const c of t.comments) {
+      const snip = c.body.replace(/\s+/g, ' ').trim();
+      const cAgo = c.createdAt ? `<span class="time-ago">${timeAgo(c.createdAt)}</span>` : '';
+      const cName = c.url
+        ? `<a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">@${escapeHtml(c.author)}</a>`
+        : `@${escapeHtml(c.author)}`;
+      html += `<div class="thread-comment"><strong>${cName}</strong>: ${escapeHtml(snip.slice(0, 200))}${snip.length > 200 ? '…' : ''} ${cAgo}</div>`;
+    }
+    html += `</div>`;
   }
 
   if (!html) html = '<p class="muted" style="font-size:.85rem">No reviews yet.</p>';
