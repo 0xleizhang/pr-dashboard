@@ -192,7 +192,21 @@ function reviewDetailsOf(node) {
     if (!comments.length) continue;
     const thread = { isResolved: t.isResolved, path: t.path ?? '', line: t.line ?? null, comments };
     const reviewId = t.comments?.nodes?.find(c => c.pullRequestReview?.id)?.pullRequestReview?.id;
-    const parent = reviewId ? reviewMap.get(reviewId) : null;
+    let parent = reviewId ? reviewMap.get(reviewId) : null;
+    if (!parent && comments.length > 0) {
+      const firstAuthor = comments[0].author;
+      const firstTime = comments[0].createdAt ? new Date(comments[0].createdAt).getTime() : null;
+      const byAuthor = reviewers.filter(r => r.login === firstAuthor);
+      if (byAuthor.length === 1) {
+        parent = byAuthor[0];
+      } else if (byAuthor.length > 1 && firstTime) {
+        parent = byAuthor.reduce((best, r) => {
+          const rDiff = Math.abs((r.submittedAt ? new Date(r.submittedAt).getTime() : 0) - firstTime);
+          const bDiff = Math.abs((best.submittedAt ? new Date(best.submittedAt).getTime() : 0) - firstTime);
+          return rDiff < bDiff ? r : best;
+        });
+      }
+    }
     if (parent) parent.threads.push(thread);
     else orphanThreads.push(thread);
   }
