@@ -134,6 +134,7 @@ const PR_FIELDS = `
     id number title url createdAt updatedAt isDraft state reviewDecision
     author { login }
     repository { nameWithOwner }
+    labels(first: 20) { nodes { name color } }
     comments(last: 10) { totalCount nodes { author { login } bodyText createdAt url } }
     reviews(last: 20) { totalCount nodes { id author { login } state body submittedAt url } }
     reviewThreads(first: 100) { nodes { isResolved path line comments(first: 10) { nodes { author { login } body url createdAt pullRequestReview { id } } } } }
@@ -237,6 +238,7 @@ export function parseGraphQLResponse(json) {
     ownersPending: parseOwnersPending(n.commits?.nodes?.[0]?.commit?.statusCheckRollup, n.url),
     latestComment: latestCommentOf(n),
     unresolved: unresolvedThreadCount(n),
+    ghLabels: (n.labels?.nodes ?? []).map(l => ({ name: l.name ?? '', color: l.color ?? '' })),
   }));
 
   const setOf = (alias) => new Set(nodes(alias).map(prKey));

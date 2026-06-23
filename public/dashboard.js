@@ -436,6 +436,17 @@ reviewDialogContent.addEventListener('click', e => {
   e.target.remove();
 });
 
+function ghLabelHtml(ghLabels) {
+  if (!ghLabels?.length) return '';
+  return ghLabels.map(l => {
+    const bg = l.color ? `#${l.color}` : '#e1e4e8';
+    const hex = l.color || 'e1e4e8';
+    const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
+    const fg = (r * 299 + g * 587 + b * 114) / 1000 > 140 ? '#000' : '#fff';
+    return `<span class="gh-label" style="background:${bg};color:${fg}">${escapeHtml(l.name)}</span>`;
+  }).join('');
+}
+
 function truncatableHtml(text, max) {
   if (text.length <= max) return escapeHtml(text);
   return `<span class="truncatable"><span class="txt-short">${escapeHtml(text.slice(0, max))}</span><span class="txt-full" hidden>${escapeHtml(text)}</span><button class="expand-btn" type="button">… more</button></span>`;
@@ -601,6 +612,7 @@ function render() {
         <div><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener" class="pr-title-link">${escapeHtml(pr.title)}</a></div>
         <div class="repo">${escapeHtml(pr.repo)}</div>
         ${(() => { const id = extractJiraId(pr.title); return id ? `<div class="jira-id"><a href="https://compass-tech.atlassian.net/browse/${escapeHtml(id)}" target="_blank" rel="noopener">🎫 ${escapeHtml(id)}</a></div>` : ''; })()}
+        ${pr.ghLabels?.length ? `<div class="gh-labels">${ghLabelHtml(pr.ghLabels)}</div>` : ''}
         ${pr.labels.includes('author') ? authorInfo(pr) : ''}
       </td>`;
     tr.querySelector('.td-number a').addEventListener('click', () => {
