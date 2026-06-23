@@ -97,9 +97,14 @@ export function latestActivityOf(pr) {
   }
   for (const r of pr.reviewDetail?.reviewers ?? []) {
     if (r.submittedAt) events.push({ author: r.login, ts: r.submittedAt });
+    for (const t of r.threads ?? []) {
+      for (const c of t.comments ?? []) {
+        if (c.createdAt) events.push({ author: c.author, ts: c.createdAt });
+      }
+    }
   }
-  for (const tg of pr.reviewDetail?.threadGroups ?? []) {
-    for (const c of tg.comments ?? []) {
+  for (const t of pr.reviewDetail?.orphanThreads ?? []) {
+    for (const c of t.comments ?? []) {
       if (c.createdAt) events.push({ author: c.author, ts: c.createdAt });
     }
   }
@@ -130,8 +135,8 @@ const PR_FIELDS = `
     author { login }
     repository { nameWithOwner }
     comments(last: 10) { totalCount nodes { author { login } bodyText createdAt url } }
-    reviews(last: 20) { totalCount nodes { author { login } state body submittedAt url } }
-    reviewThreads(first: 100) { nodes { isResolved comments(first: 10) { nodes { author { login } body url createdAt } } } }
+    reviews(last: 20) { totalCount nodes { id author { login } state body submittedAt url } }
+    reviewThreads(first: 100) { nodes { isResolved path line comments(first: 10) { nodes { author { login } body url createdAt pullRequestReview { id } } } } }
     commits(last: 1) { nodes { commit { statusCheckRollup {
       contexts(first: 100) {
         nodes {
@@ -176,19 +181,24 @@ function reviewDetailsOf(node) {
   const REVIEW_STATE = { APPROVED: '✅ Approved', CHANGES_REQUESTED: '❌ Changes Requested', COMMENTED: '💬 Commented', DISMISSED: '⚫ Dismissed' };
   const reviewers = (node.reviews?.nodes ?? [])
     .filter(r => !isBot(r.author?.login) && r.state !== 'PENDING')
-    .map(r => ({ login: r.author?.login ?? 'unknown', state: r.state, label: REVIEW_STATE[r.state] ?? r.state, body: r.body ?? '', url: r.url ?? '', submittedAt: r.submittedAt ?? null }));
+    .map(r => ({ id: r.id ?? '', login: r.author?.login ?? 'unknown', state: r.state, label: REVIEW_STATE[r.state] ?? r.state, body: r.body ?? '', url: r.url ?? '', submittedAt: r.submittedAt ?? null, threads: [] }));
+  const reviewMap = new Map(reviewers.map(r => [r.id, r]));
+  const orphanThreads = [];
+  for (const t of node.reviewThreads?.nodes ?? []) {
+    const comments = (t.comments?.nodes ?? [])
+      .filter(c => !isBot(c.author?.login))
+      .map(c => ({ author: c.author?.login ?? 'unknown', body: c.body ?? '', url: c.url ?? '', createdAt: c.createdAt }));
+    if (!comments.length) continue;
+    const thread = { isResolved: t.isResolved, path: t.path ?? '', line: t.line ?? null, comments };
+    const reviewId = t.comments?.nodes?.find(c => c.pullRequestReview?.id)?.pullRequestReview?.id;
+    const parent = reviewId ? reviewMap.get(reviewId) : null;
+    if (parent) parent.threads.push(thread);
+    else orphanThreads.push(thread);
+  }
   const comments = (node.comments?.nodes ?? [])
     .filter(c => !isBot(c.author?.login))
     .map(c => ({ author: c.author?.login ?? 'unknown', body: c.bodyText ?? '', createdAt: c.createdAt, url: c.url ?? '' }));
-  const threadGroups = (node.reviewThreads?.nodes ?? [])
-    .map(t => ({
-      isResolved: t.isResolved,
-      comments: (t.comments?.nodes ?? [])
-        .filter(c => !isBot(c.author?.login))
-        .map(c => ({ author: c.author?.login ?? 'unknown', body: c.body ?? '', url: c.url ?? '', createdAt: c.createdAt })),
-    }))
-    .filter(t => t.comments.length > 0);
-  return { reviewers, comments, threadGroups };
+  return { reviewers, comments, orphanThreads };
 }
 
 function unresolvedThreadCount(node) {

@@ -77,18 +77,18 @@ test('isNewActivity: false when not updated since last seen', () => {
 });
 
 test('latestActivityOf: returns null when no activity', () => {
-  assert.equal(latestActivityOf({ latestComment: null, reviewDetail: { reviewers: [], threadGroups: [] } }), null);
+  assert.equal(latestActivityOf({ latestComment: null, reviewDetail: { reviewers: [], orphanThreads: [] } }), null);
 });
 test('latestActivityOf: returns latest comment', () => {
-  const pr = { latestComment: { author: 'alice', createdAt: '2026-06-12T10:00:00Z' }, reviewDetail: { reviewers: [], threadGroups: [] } };
+  const pr = { latestComment: { author: 'alice', createdAt: '2026-06-12T10:00:00Z' }, reviewDetail: { reviewers: [], orphanThreads: [] } };
   assert.deepEqual(latestActivityOf(pr), { author: 'alice', ts: '2026-06-12T10:00:00Z' });
 });
 test('latestActivityOf: prefers most recent across comments, reviews, threads', () => {
   const pr = {
     latestComment: { author: 'alice', createdAt: '2026-06-12T08:00:00Z' },
     reviewDetail: {
-      reviewers: [{ login: 'bob', submittedAt: '2026-06-12T09:00:00Z' }],
-      threadGroups: [{ comments: [{ author: 'carol', createdAt: '2026-06-12T10:00:00Z' }] }],
+      reviewers: [{ login: 'bob', submittedAt: '2026-06-12T09:00:00Z', threads: [{ comments: [{ author: 'carol', createdAt: '2026-06-12T10:00:00Z' }] }] }],
+      orphanThreads: [],
     },
   };
   assert.deepEqual(latestActivityOf(pr), { author: 'carol', ts: '2026-06-12T10:00:00Z' });
@@ -128,6 +128,8 @@ test('buildGraphQLQuery includes all 5 aliased searches and PR fields', () => {
   assert.ok(q.includes('reviewDecision'), 'requests reviewDecision');
   assert.ok(q.includes('statusCheckRollup'), 'requests CI rollup');
   assert.ok(q.includes('first: 50'), 'paginates at 50');
+  assert.ok(q.includes('pullRequestReview'), 'requests pullRequestReview id on thread comments');
+  assert.ok(q.includes('path line'), 'requests path and line on review threads');
 });
 
 test('parseGraphQLResponse normalizes PRs and merges participation labels', () => {
