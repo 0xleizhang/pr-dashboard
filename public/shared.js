@@ -85,7 +85,8 @@ export function mapCIStatus(rollup) {
 
 export function isNewActivity(lastSeen, updatedAt) {
   if (!lastSeen) return true;
-  return new Date(updatedAt).getTime() > new Date(lastSeen).getTime();
+  const ts = typeof lastSeen === 'string' ? lastSeen : lastSeen.ts;
+  return new Date(updatedAt).getTime() > new Date(ts).getTime();
 }
 
 // Returns { author, ts } of the most recent human activity (comment/review/thread),
@@ -142,6 +143,89 @@ export function buildSearchQuery({ user, org, scope, states, days = 7, qualifier
   return parts.join(' ');
 }
 
+const LEAD_TEAMS = new Set(['authz-leads', 'iam-leads']);
+
+// Compute the merged 9-state PR status from review + CI signals.
+export function mapPRStatus(n, { ci, reviewDetail, ownersPending, committedDate }) {
+  const authorLogin = n.author?.login;
+  // Exclude the PR author's own reviews — authors sometimes leave review comments on
+  // their own PR, which would otherwise inflate latestReviewerDate and trigger "author turn".
+  const reviewers = reviewDetail.reviewers.filter(r => r.login !== authorLogin);
+
+  if (ci === 'fail') return 'ci_failed';
+
+  const ownersOk = !ownersPending || ownersPending.status !== 'fail';
+  if (n.reviewDecision === 'APPROVED' && ownersOk) return 'approved';
+
+  // Compute isLeadOnly early so it can take priority over part_approved.
+  const pending = ownersPending?.pending ?? [];
+  const isLeadOnly = pending.length > 0 && pending.every(t => {
+    let name = t.name;
+    const slash = name.indexOf('/');
+    if (slash !== -1) name = name.slice(slash + 1);
+    return LEAD_TEAMS.has(name);
+  });
+
+  // When only lead teams are blocking OWNERS, surface that over "part approved"
+  // so leads know they are the remaining blocker.
+  if (n.reviewDecision === 'APPROVED' && isLeadOnly) return 'lead_re_review';
+
+  // Compute reviewer and author timestamps for the "author turn" decision
+  let latestReviewerDate = new Date(0);
+  const allThreads = [
+    ...reviewers.flatMap(r => r.threads ?? []),
+    ...(reviewDetail.orphanThreads ?? []),
+  ];
+  for (const r of reviewers) {
+    if (r.submittedAt) {
+      const t = new Date(r.submittedAt);
+      if (t > latestReviewerDate) latestReviewerDate = t;
+    }
+  }
+  for (const thread of allThreads) {
+    for (const c of thread.comments ?? []) {
+      if (c.author !== authorLogin && c.createdAt) {
+        const t = new Date(c.createdAt);
+        if (t > latestReviewerDate) latestReviewerDate = t;
+      }
+    }
+  }
+
+  let latestAuthorCommentDate = new Date(0);
+  for (const c of (n.comments?.nodes ?? [])) {
+    if (c.author?.login === authorLogin && c.createdAt) {
+      const t = new Date(c.createdAt);
+      if (t > latestAuthorCommentDate) latestAuthorCommentDate = t;
+    }
+  }
+  for (const thread of allThreads) {
+    for (const c of thread.comments ?? []) {
+      if (c.author === authorLogin && c.createdAt) {
+        const t = new Date(c.createdAt);
+        if (t > latestAuthorCommentDate) latestAuthorCommentDate = t;
+      }
+    }
+  }
+  const latestCommitDate = committedDate ? new Date(committedDate) : new Date(0);
+  const authorRespondedAt = latestCommitDate > latestAuthorCommentDate ? latestCommitDate : latestAuthorCommentDate;
+
+  const hasChangesRequested = reviewers.some(r => r.state === 'CHANGES_REQUESTED');
+  const hasUnresolved = allThreads.some(t => !t.isResolved);
+
+  if ((hasChangesRequested || hasUnresolved) && authorRespondedAt <= latestReviewerDate) return 'author_turn';
+
+  if (n.reviewDecision === 'APPROVED' && ownersPending?.status === 'fail') return 'part_approved';
+
+  // Reviewer's turn
+  const hasActiveReview = reviewers.length > 0;
+
+  if (isLeadOnly) return 'lead_re_review';
+  if (hasActiveReview) return 'wait_re_review';
+  if (ci === 'pending') return 'ci_pending';
+  if (ci === 'unknown') return 'ci_unknown';
+  return 'none';
+}
+
 const PR_FIELDS = `
   ... on PullRequest {
     id number title url createdAt updatedAt isDraft state reviewDecision
@@ -151,7 +235,7 @@ const PR_FIELDS = `
     comments(last: 10) { totalCount nodes { author { login } bodyText createdAt url } }
     reviews(last: 20) { totalCount nodes { id author { login } state body submittedAt url } }
     reviewThreads(first: 100) { nodes { isResolved path line comments(first: 10) { nodes { author { login } body url createdAt pullRequestReview { id } } } } }
-    commits(last: 1) { nodes { commit { statusCheckRollup {
+    commits(last: 1) { totalCount nodes { commit { committedDate statusCheckRollup {
       contexts(first: 100) {
         nodes {
           __typename
@@ -250,26 +334,35 @@ export function parseGraphQLResponse(json) {
   const data = json.data || {};
   const nodes = (alias) => (data[alias]?.nodes || []).filter(n => n && n.number);
 
-  const prs = nodes('main').filter(n => n.repository).map(n => ({
-    key: prKey(n),
-    id: n.id,
-    number: n.number,
-    title: n.title,
-    url: n.url,
-    repo: n.repository.nameWithOwner,
-    createdAt: n.createdAt,
-    updatedAt: n.updatedAt,
-    author: n.author?.login ?? 'unknown',
-    isDraft: n.isDraft,
-    state: n.state,
-    review: mapReviewStatus(n),
-    reviewDetail: reviewDetailsOf(n),
-    ci: mapCIStatus(n.commits?.nodes?.[0]?.commit?.statusCheckRollup),
-    ownersPending: parseOwnersPending(n.commits?.nodes?.[0]?.commit?.statusCheckRollup, n.url),
-    latestComment: latestCommentOf(n),
-    unresolved: unresolvedThreadCount(n),
-    ghLabels: (n.labels?.nodes ?? []).map(l => ({ name: l.name ?? '', color: l.color ?? '' })),
-  }));
+  const prs = nodes('main').filter(n => n.repository).map(n => {
+    const commit = n.commits?.nodes?.[0]?.commit;
+    const ci = mapCIStatus(commit?.statusCheckRollup);
+    const reviewDetail = reviewDetailsOf(n);
+    const ownersPending = parseOwnersPending(commit?.statusCheckRollup, n.url);
+    const committedDate = commit?.committedDate ?? null;
+    return {
+      key: prKey(n),
+      id: n.id,
+      number: n.number,
+      title: n.title,
+      url: n.url,
+      repo: n.repository.nameWithOwner,
+      createdAt: n.createdAt,
+      updatedAt: n.updatedAt,
+      author: n.author?.login ?? 'unknown',
+      isDraft: n.isDraft,
+      state: n.state,
+      review: mapReviewStatus(n),
+      reviewDetail,
+      ci,
+      ownersPending,
+      status: mapPRStatus(n, { ci, reviewDetail, ownersPending, committedDate }),
+      latestComment: latestCommentOf(n),
+      unresolved: unresolvedThreadCount(n),
+      ghLabels: (n.labels?.nodes ?? []).map(l => ({ name: l.name ?? '', color: l.color ?? '' })),
+      commitCount: n.commits?.totalCount ?? 0,
+    };
+  });
 
   const setOf = (alias) => new Set(nodes(alias).map(prKey));
   const labelSets = {

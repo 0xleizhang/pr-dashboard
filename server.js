@@ -99,8 +99,21 @@ const server = createServer((req, res) => {
   return serveStatic(req, res);
 });
 
-server.listen(CONFIG.port, () => {
-  const addr = `http://localhost:${CONFIG.port}`;
-  console.log(`pr-dashboard for ${CONFIG.user} @ ${CONFIG.org} → ${addr}`);
-  exec(`open ${addr}`); // macOS: open in default browser
-});
+function startServer(port) {
+  server.listen(port, () => {
+    const addr = `http://localhost:${port}`;
+    console.log(`pr-dashboard for ${CONFIG.user} @ ${CONFIG.org} → ${addr}`);
+    exec(`open ${addr}`);
+  });
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`Port ${port} in use, trying ${port + 1}...`);
+      server.removeAllListeners('error');
+      startServer(port + 1);
+    } else {
+      throw err;
+    }
+  });
+}
+
+startServer(CONFIG.port);

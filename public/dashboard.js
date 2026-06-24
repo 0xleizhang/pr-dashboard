@@ -6,16 +6,14 @@ const THEME_KEY = 'pr-dashboard:theme';
 const COL_VISIBILITY_KEY = 'pr-dashboard:col-visibility';
 const COL_ORDER_KEY = 'pr-dashboard:col-order';
 
-const DEFAULT_COL_ORDER = [1, 2, 3, 4, 5, 6, 7, 8];
+const DEFAULT_COL_ORDER = [1, 3, 4, 5, 7, 8];
 let currentColOrder = [...DEFAULT_COL_ORDER];
 
 const COL_DEF = {
   1: { label: 'State',         defaultW: 72  },
-  2: { label: 'PR#',           defaultW: 52  },
   3: { label: 'Author',        defaultW: 90  },
   4: { label: 'Participation', defaultW: 110 },
-  5: { label: 'Review',        defaultW: 120 },
-  6: { label: 'CI',            defaultW: 72  },
+  5: { label: 'Status',        defaultW: 150 },
   7: { label: 'Created',       defaultW: 88  },
   8: { label: 'Updated',       defaultW: 88  },
 };
@@ -58,8 +56,17 @@ const els = {
 };
 
 const PARTICIPATION = { author: '🖊 author', reviewer: '👁 reviewer', mention: '@ mention', assignee: '👤 assignee' };
-const REVIEW = { approved: '✅ approved', changes_requested: '❌ changes', commented: '💬 commented', none: '⚪ none' };
-const CI = { pass: '🟢 pass', fail: '🔴 fail', pending: '🟡 pending', unknown: '⚪ —' };
+const STATUS_LABEL = {
+  ci_failed:      '🔴 ci failed',
+  approved:       '✅ approved',
+  author_turn:    '✏️ author turn',
+  part_approved:  '🔶 part approved',
+  lead_re_review: '👀 lead re-review',
+  wait_re_review: '🔍 wait re-review',
+  none:           '⚪ none',
+  ci_pending:     '🟡 ci pending',
+  ci_unknown:     '❓ ci unknown',
+};
 const STATE = { open: 'open', draft: 'draft', closed: 'closed', merged: 'merged' };
 
 function prState(pr) {
@@ -75,27 +82,23 @@ function approverNames(pr) {
     .map(r => r.login);
 }
 
-function isFullyApproved(pr) {
-  return pr.review === 'approved' && (!pr.ownersPending || pr.ownersPending.status === 'pass');
-}
-
-function reviewLabel(pr) {
-  if (pr.review !== 'approved') return `<span class="review-label review-${pr.review}">${REVIEW[pr.review]}</span>`;
-  const full = isFullyApproved(pr);
-  const label = full ? '✅ approved' : '🔶 part approved';
-  const cls = full ? 'review-approved' : 'review-part-approved';
-  const approvers = approverNames(pr);
-  const tip = approvers.length ? `Approved by: ${approvers.join(', ')}` : '';
-  return `<span class="review-label ${cls}" title="${escapeHtml(tip)}">${label}</span>`;
+function statusLabel(pr) {
+  const s = pr.status ?? 'none';
+  const label = STATUS_LABEL[s] ?? s;
+  let tip = '';
+  if (s === 'approved' || s === 'part_approved') {
+    const approvers = approverNames(pr);
+    if (approvers.length) tip = `Approved by: ${approvers.join(', ')}`;
+  }
+  const title = tip ? ` title="${escapeHtml(tip)}"` : '';
+  return `<span class="status-label status-${s}"${title}>${label}</span>`;
 }
 
 const COL_RENDERERS = {
   1: (pr) => `<td><span class="state state-${prState(pr)}">${STATE[prState(pr)]}</span></td>`,
-  2: (pr) => `<td class="td-number"><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener">${pr.number}</a></td>`,
   3: (pr) => `<td class="td-author">${escapeHtml(pr.author)}</td>`,
   4: (pr) => `<td>${pr.labels.map(l => `<span class="tag">${PARTICIPATION[l]}</span>`).join('')}</td>`,
-  5: (pr) => `<td class="td-review">${reviewLabel(pr)}${ownersTag(pr)}</td>`,
-  6: (pr) => `<td class="ci-${pr.ci}">${CI[pr.ci]}</td>`,
+  5: (pr) => `<td class="td-status">${statusLabel(pr)}${ownersTag(pr)}</td>`,
   7: (pr) => `<td class="td-time">${timeCell(pr.createdAt)}</td>`,
   8: (pr) => `<td class="td-time">${timeCell(pr.updatedAt)}</td>`,
 };
@@ -117,15 +120,24 @@ function loadPrefs() {
 }
 function savePrefs() {
   const stateFilter = [...document.querySelectorAll('#state-dropdown input:checked')].map(i => i.value);
-  const participation = document.querySelector('#participation-dropdown input:checked')?.value ?? 'all';
-  localStorage.setItem(PREFS_KEY, JSON.stringify({ sort: sortState, stateFilter, participation, meOnly, days: currentDays }));
+  const participation = [...document.querySelectorAll('#participation-dropdown input[type="checkbox"]:checked')].map(i => i.value);
+  localStorage.setItem(PREFS_KEY, JSON.stringify({ sort: sortState, stateFilter, participation, meMode, days: currentDays }));
 }
 
-const REVIEW_PRIORITY = { changes_requested: 0, commented: 1, none: 2, approved: 3 };
+const STATUS_SORT_PRIORITY = {
+  approved:       0,
+  ci_failed:      1,
+  author_turn:    2,
+  part_approved:  3,
+  lead_re_review: 4,
+  wait_re_review: 5,
+  none:           6,
+  ci_pending:     7,
+  ci_unknown:     8,
+};
 
-function reviewPriority(pr) {
-  if (pr.review === 'approved') return isFullyApproved(pr) ? 4 : 3;
-  return REVIEW_PRIORITY[pr.review] ?? 0;
+function statusPriority(pr) {
+  return STATUS_SORT_PRIORITY[pr.status] ?? 9;
 }
 
 const SORTERS = {
@@ -133,18 +145,17 @@ const SORTERS = {
   author:  { asc: (a, b) => a.author.localeCompare(b.author), desc: (a, b) => b.author.localeCompare(a.author) },
   created: { asc: (a, b) => new Date(a.createdAt) - new Date(b.createdAt), desc: (a, b) => new Date(b.createdAt) - new Date(a.createdAt) },
   updated: { asc: (a, b) => new Date(a.updatedAt) - new Date(b.updatedAt), desc: (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt) },
-  review:  {
-    desc: (a, b) => (reviewPriority(a) - reviewPriority(b)) || (new Date(b.updatedAt) - new Date(a.updatedAt)),
-    asc:  (a, b) => (reviewPriority(b) - reviewPriority(a)) || (new Date(b.updatedAt) - new Date(a.updatedAt)),
+  status:  {
+    desc: (a, b) => (statusPriority(a) - statusPriority(b)) || (new Date(b.updatedAt) - new Date(a.updatedAt)),
+    asc:  (a, b) => (statusPriority(b) - statusPriority(a)) || (new Date(b.updatedAt) - new Date(a.updatedAt)),
   },
 };
 
 let sortState = { col: 'updated', dir: 'desc' };
 
 const sortCols = {
-  'th-number':  'number',
   'th-author':  'author',
-  'th-review':  'review',
+  'th-status':  'status',
   'th-created': 'created',
   'th-updated': 'updated',
 };
@@ -256,13 +267,15 @@ function applyColOrder(order) {
   }
 }
 
-function setupColumnsDropdown() {
-  const btn = document.getElementById('col-visibility-btn');
-  const menu = document.getElementById('col-visibility-dropdown');
+function setupSettingsModal() {
+  const dialog = document.getElementById('settings-dialog');
+  const openBtn = document.getElementById('settings-btn');
+  const closeBtn = document.getElementById('settings-close');
+  const colContainer = document.getElementById('settings-col-config');
   let dragIdx = null;
 
-  function buildMenu() {
-    menu.innerHTML = '';
+  function buildColList() {
+    colContainer.innerHTML = '';
     const v = loadColVisibility();
     for (const idx of currentColOrder) {
       const def = COL_DEF[idx];
@@ -291,35 +304,34 @@ function setupColumnsDropdown() {
 
       row.appendChild(handle);
       row.appendChild(lbl);
-      menu.appendChild(row);
+      colContainer.appendChild(row);
     }
   }
 
-  // Drag listeners attached once via event delegation on the menu container
-  menu.addEventListener('dragstart', (e) => {
+  colContainer.addEventListener('dragstart', (e) => {
     const row = e.target.closest('.col-config-row');
     if (!row) return;
     dragIdx = Number(row.dataset.idx);
     e.dataTransfer.effectAllowed = 'move';
   });
 
-  menu.addEventListener('dragover', (e) => {
+  colContainer.addEventListener('dragover', (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     const row = e.target.closest('.col-config-row');
-    menu.querySelectorAll('.col-config-row').forEach(r => r.classList.remove('drag-over'));
+    colContainer.querySelectorAll('.col-config-row').forEach(r => r.classList.remove('drag-over'));
     if (row) row.classList.add('drag-over');
   });
 
-  menu.addEventListener('dragleave', (e) => {
-    if (!menu.contains(e.relatedTarget)) {
-      menu.querySelectorAll('.col-config-row').forEach(r => r.classList.remove('drag-over'));
+  colContainer.addEventListener('dragleave', (e) => {
+    if (!colContainer.contains(e.relatedTarget)) {
+      colContainer.querySelectorAll('.col-config-row').forEach(r => r.classList.remove('drag-over'));
     }
   });
 
-  menu.addEventListener('drop', (e) => {
+  colContainer.addEventListener('drop', (e) => {
     e.preventDefault();
-    menu.querySelectorAll('.col-config-row').forEach(r => r.classList.remove('drag-over'));
+    colContainer.querySelectorAll('.col-config-row').forEach(r => r.classList.remove('drag-over'));
     const row = e.target.closest('.col-config-row');
     if (!row || dragIdx === null) return;
     const dropIdx = Number(row.dataset.idx);
@@ -333,19 +345,18 @@ function setupColumnsDropdown() {
     applyColOrder(order);
     applyColVisibility(loadColVisibility());
     render();
-    buildMenu();
+    buildColList();
     dragIdx = null;
   });
 
-  buildMenu();
+  buildColList();
 
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    menu.classList.toggle('open');
+  openBtn.addEventListener('click', () => {
+    buildColList();
+    dialog.showModal();
   });
-  document.addEventListener('click', (e) => {
-    if (!menu.contains(e.target) && !btn.contains(e.target)) menu.classList.remove('open');
-  });
+  closeBtn.addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
 }
 
 function initColResize() {
@@ -403,7 +414,7 @@ function initColResize() {
 applyColOrder(loadColOrder());
 applyColVisibility(loadColVisibility());
 initColResize();
-setupColumnsDropdown();
+setupSettingsModal();
 // ─────────────────────────────────────────────────────────────
 
 function formatTime(iso) {
@@ -422,9 +433,9 @@ function timeCell(iso) {
   return `<span title="${escapeHtml(full)}">${timeAgo(iso)}</span>`;
 }
 
-// Stubs reassigned in Task 6
+// Stubs reassigned below
 let activeStateFilter = () => [];
-let activeTypeFilter = () => 'all';
+let activeTypeFilter = () => [];
 
 activeStateFilter = () => {
   const checked = [...document.querySelectorAll('#state-dropdown input:checked')];
@@ -432,12 +443,56 @@ activeStateFilter = () => {
 };
 
 activeTypeFilter = () => {
-  const checked = document.querySelector('#participation-dropdown input:checked');
-  return checked?.value ?? 'all';
+  return [...document.querySelectorAll('#participation-dropdown input[type="checkbox"]:checked')].map(i => i.value);
+  // empty array = all (no filter)
 };
 
 let currentDays = 14;
-let meOnly = true;
+let meMode = 'author'; // 'author' | 'involved' | 'all'
+let lastLoadedMeOnly = true;
+
+function getMeOnly() {
+  const checked = [...document.querySelectorAll('#participation-dropdown input[type="checkbox"]:checked')].map(i => i.value);
+  return checked.length === 1 && checked[0] === 'author';
+}
+
+function applyMeSeg(mode) {
+  meMode = mode;
+  document.querySelectorAll('#me-seg .seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  const boxes = document.querySelectorAll('#participation-dropdown input[type="checkbox"]');
+  if (mode === 'author') {
+    boxes.forEach(inp => { inp.checked = inp.value === 'author'; });
+  } else if (mode === 'involved') {
+    boxes.forEach(inp => { inp.checked = inp.value !== 'author'; });
+  } else {
+    boxes.forEach(inp => { inp.checked = false; });
+  }
+  savePrefs();
+  const newMeOnly = getMeOnly();
+  if (lastLoadedMeOnly !== newMeOnly) {
+    load();
+  } else {
+    render();
+  }
+}
+
+function syncSegFromParticipation() {
+  const checked = new Set([...document.querySelectorAll('#participation-dropdown input[type="checkbox"]:checked')].map(i => i.value));
+  let mode = null;
+  if (checked.size === 1 && checked.has('author')) {
+    mode = 'author';
+  } else if (checked.size === 3 && !checked.has('author')) {
+    mode = 'involved';
+  } else if (checked.size === 0) {
+    mode = 'all';
+  }
+  if (mode) meMode = mode;
+  document.querySelectorAll('#me-seg .seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+}
 
 (function applyPrefs() {
   const p = loadPrefs();
@@ -447,14 +502,26 @@ let meOnly = true;
       inp.checked = p.stateFilter.includes(inp.value);
     });
   }
-  if (p.participation) {
-    const radio = document.querySelector(`#participation-dropdown input[value="${p.participation}"]`);
-    if (radio) radio.checked = true;
+  if (p.meMode) {
+    meMode = p.meMode;
+  } else if (p.meOnly !== undefined) {
+    meMode = p.meOnly ? 'author' : 'all';
   }
-  if (p.meOnly !== undefined) {
-    meOnly = p.meOnly;
-    document.getElementById('me-toggle').checked = meOnly;
+  const boxes = document.querySelectorAll('#participation-dropdown input[type="checkbox"]');
+  if (p.participation && Array.isArray(p.participation)) {
+    boxes.forEach(inp => { inp.checked = p.participation.includes(inp.value); });
+  } else {
+    if (meMode === 'author') {
+      boxes.forEach(inp => { inp.checked = inp.value === 'author'; });
+    } else if (meMode === 'involved') {
+      boxes.forEach(inp => { inp.checked = inp.value !== 'author'; });
+    } else {
+      boxes.forEach(inp => { inp.checked = false; });
+    }
   }
+  document.querySelectorAll('#me-seg .seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === meMode);
+  });
   if (p.days) {
     currentDays = p.days;
     document.getElementById('days-select').value = String(currentDays);
@@ -462,14 +529,14 @@ let meOnly = true;
   updateSortUI();
 })();
 
-document.getElementById('days-select').addEventListener('change', (e) => {
-  currentDays = Number(e.target.value);
-  savePrefs();
-  load();
+lastLoadedMeOnly = getMeOnly();
+
+document.querySelectorAll('#me-seg .seg-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyMeSeg(btn.dataset.mode));
 });
 
-document.getElementById('me-toggle').addEventListener('change', (e) => {
-  meOnly = e.target.checked;
+document.getElementById('days-select').addEventListener('change', (e) => {
+  currentDays = Number(e.target.value);
   savePrefs();
   load();
 });
@@ -481,7 +548,16 @@ document.getElementById('state-dropdown').addEventListener('change', () => {
   stateLoadTimer = setTimeout(load, 400);
 });
 
-document.getElementById('participation-dropdown').addEventListener('change', () => { savePrefs(); render(); });
+document.getElementById('participation-dropdown').addEventListener('change', () => {
+  const newMeOnly = getMeOnly();
+  syncSegFromParticipation();
+  savePrefs();
+  if (lastLoadedMeOnly !== newMeOnly) {
+    load();
+  } else {
+    render();
+  }
+});
 
 const authorAllCheckbox = document.getElementById('author-all');
 const authorList = document.getElementById('author-list');
@@ -544,9 +620,10 @@ function updateFilterIndicators() {
   }
 
   const typeFilter = activeTypeFilter();
-  if (typeFilter !== 'all') {
-    bar.appendChild(makeChip('Participation: ', typeFilter, () => {
-      document.querySelector('#participation-dropdown input[value="all"]').checked = true;
+  if (typeFilter.length > 0) {
+    bar.appendChild(makeChip('Participation: ', typeFilter.join(', '), () => {
+      document.querySelectorAll('#participation-dropdown input[type="checkbox"]').forEach(i => { i.checked = false; });
+      syncSegFromParticipation();
       savePrefs(); render();
     }));
   }
@@ -563,33 +640,86 @@ function updateFilterIndicators() {
 
 function visiblePrs() {
   const stateFilter = activeStateFilter();
-  const typeFilter = activeTypeFilter();
+  const typeFilter = activeTypeFilter(); // array, empty = all
   const authorFilter = activeAuthorFilter();
   let filtered = allPrs;
   if (stateFilter.length) filtered = filtered.filter(pr => stateFilter.includes(prState(pr)));
-  if (typeFilter !== 'all') filtered = filtered.filter(pr => pr.labels.includes(typeFilter));
+  if (typeFilter.length) filtered = filtered.filter(pr => typeFilter.some(t => pr.labels.includes(t)));
   if (authorFilter.length) filtered = filtered.filter(pr => authorFilter.includes(pr.author));
   const sorter = SORTERS[sortState.col]?.[sortState.dir] ?? SORTERS.updated.desc;
   return [...filtered].sort(sorter);
 }
 
-function authorInfo(pr) {
-  const parts = [];
-  if (pr.unresolved > 0) {
-    parts.push(`<span class="warn">⚠ ${pr.unresolved} unresolved</span>`);
+function recentEventsHtml(pr, seenEntry, user) {
+  const lastSeenTs = typeof seenEntry === 'string' ? seenEntry : seenEntry?.ts;
+  const lastSeenCommits = typeof seenEntry === 'string' ? null : (seenEntry?.commits ?? null);
+  if (!lastSeenTs) return '';
+
+  const isAuthor = pr.labels.includes('author');
+  const events = [];
+
+  if (isAuthor) {
+    for (const r of pr.reviewDetail?.reviewers ?? []) {
+      if (r.login === user) continue;
+      if (r.submittedAt && r.submittedAt > lastSeenTs) {
+        const action = r.state === 'APPROVED' ? 'approved'
+          : r.state === 'CHANGES_REQUESTED' ? 'changes requested'
+          : 'commented';
+        events.push(`${escapeHtml(r.login)}: ${action}`);
+      }
+    }
+    for (const c of pr.reviewDetail?.comments ?? []) {
+      if (c.author === user) continue;
+      if (c.createdAt && c.createdAt > lastSeenTs) {
+        events.push(`${escapeHtml(c.author)} commented`);
+      }
+    }
+  } else {
+    if (lastSeenCommits !== null && pr.commitCount > lastSeenCommits) {
+      const diff = pr.commitCount - lastSeenCommits;
+      events.push(`${diff} new commit${diff > 1 ? 's' : ''}`);
+    }
+    for (const r of pr.reviewDetail?.reviewers ?? []) {
+      for (const t of r.threads ?? []) {
+        if (!t.comments.some(c => c.author === user)) continue;
+        for (const c of t.comments) {
+          if (c.author === user) continue;
+          if (c.createdAt && c.createdAt > lastSeenTs) {
+            const file = t.path ? t.path.split('/').pop() : 'code';
+            events.push(`${escapeHtml(c.author)} replied on ${escapeHtml(file)}`);
+            break;
+          }
+        }
+      }
+    }
+    for (const t of pr.reviewDetail?.orphanThreads ?? []) {
+      if (!t.comments.some(c => c.author === user)) continue;
+      for (const c of t.comments) {
+        if (c.author === user) continue;
+        if (c.createdAt && c.createdAt > lastSeenTs) {
+          const file = t.path ? t.path.split('/').pop() : 'code';
+          events.push(`${escapeHtml(c.author)} replied on ${escapeHtml(file)}`);
+          break;
+        }
+      }
+    }
   }
-  if (pr.latestComment) {
-    const body = pr.latestComment.body.replace(/\s+/g, ' ').trim();
-    const snip = body.slice(0, 80);
-    parts.push(`<span class="muted">💬 @${escapeHtml(pr.latestComment.author)}: ${escapeHtml(snip)}${body.length > 80 ? '…' : ''}</span>`);
-  }
-  return parts.length ? `<div class="comment">${parts.join(' · ')}</div>` : '';
+
+  if (!events.length) return '';
+  return `<div class="recent-events-wrap"><div class="recent-events">${events.join(' · ')}</div></div>`;
 }
+
 
 const reviewDialog = document.getElementById('review-dialog');
 const reviewDialogTitle = document.getElementById('review-dialog-title');
 const reviewDialogContent = document.getElementById('review-dialog-content');
 const showClosedToggle = document.getElementById('show-closed-toggle');
+const SHOW_CLOSED_KEY = 'pr-dashboard:hide-closed-reviews';
+showClosedToggle.checked = localStorage.getItem(SHOW_CLOSED_KEY) !== 'off';
+showClosedToggle.addEventListener('change', () => {
+  localStorage.setItem(SHOW_CLOSED_KEY, showClosedToggle.checked ? 'on' : 'off');
+  if (currentReviewPr) renderReviewContent(currentReviewPr);
+});
 document.getElementById('review-dialog-close').addEventListener('click', () => reviewDialog.close());
 reviewDialog.addEventListener('click', (e) => { if (e.target === reviewDialog) reviewDialog.close(); });
 
@@ -598,14 +728,38 @@ const ownersDialogContent = document.getElementById('owners-dialog-content');
 document.getElementById('owners-dialog-close').addEventListener('click', () => ownersDialog.close());
 ownersDialog.addEventListener('click', (e) => { if (e.target === ownersDialog) ownersDialog.close(); });
 
+const hideMyToggle = document.getElementById('hide-my-toggle');
+const HIDE_MY_KEY = 'pr-dashboard:hide-my-comments';
+hideMyToggle.checked = localStorage.getItem(HIDE_MY_KEY) !== 'off';
+hideMyToggle.addEventListener('change', () => {
+  localStorage.setItem(HIDE_MY_KEY, hideMyToggle.checked ? 'on' : 'off');
+  if (currentReviewPr) renderReviewContent(currentReviewPr);
+});
+
+const onlyUnrepliedToggle = document.getElementById('only-unreplied-toggle');
+const ONLY_UNREPLIED_KEY = 'pr-dashboard:only-unreplied';
+onlyUnrepliedToggle.checked = localStorage.getItem(ONLY_UNREPLIED_KEY) === 'on';
+onlyUnrepliedToggle.addEventListener('change', () => {
+  localStorage.setItem(ONLY_UNREPLIED_KEY, onlyUnrepliedToggle.checked ? 'on' : 'off');
+  if (currentReviewPr) renderReviewContent(currentReviewPr);
+});
+
 let currentReviewPr = null;
-showClosedToggle.addEventListener('change', () => { if (currentReviewPr) renderReviewContent(currentReviewPr); });
 reviewDialogContent.addEventListener('click', e => {
-  if (!e.target.classList.contains('expand-btn')) return;
-  const wrap = e.target.closest('.truncatable');
-  wrap.querySelector('.txt-short').hidden = true;
-  wrap.querySelector('.txt-full').hidden = false;
-  e.target.remove();
+  if (e.target.classList.contains('expand-btn')) {
+    const wrap = e.target.closest('.truncatable');
+    wrap.querySelector('.txt-short').hidden = true;
+    wrap.querySelector('.txt-full').hidden = false;
+    e.target.remove();
+    return;
+  }
+  const header = e.target.closest('.reviewer-group-header');
+  if (header) {
+    const group = header.closest('.reviewer-group');
+    const icon = header.querySelector('.batch-collapse-icon');
+    group.classList.toggle('collapsed');
+    if (icon) icon.textContent = group.classList.contains('collapsed') ? '▶' : '▼';
+  }
 });
 
 function ghLabelHtml(ghLabels) {
@@ -639,41 +793,148 @@ function timeAgo(iso) {
   return `${Math.floor(mo / 12)}y ago`;
 }
 
+
 function renderReviewContent(pr) {
-  const showClosed = showClosedToggle.checked;
+  const showClosed = !showClosedToggle.checked;
   const { reviewers, comments, orphanThreads = [] } = pr.reviewDetail;
 
   let html = '';
+  let commentNum = 0;
+  const numLink = (url, n) => url
+    ? `<a href="${escapeHtml(url)}" class="comment-num" target="_blank" rel="noopener">#${n}</a>`
+    : `<span class="comment-num">#${n}</span>`;
 
-  const visibleReviewers = reviewers.filter(r => !(r.state === 'DISMISSED' && !showClosed));
+  const visibleReviewers = reviewers.filter(r => {
+    if (r.state === 'DISMISSED' && !showClosed) return false;
+    if (hideMyToggle.checked && r.login === currentUser) return false;
+    return true;
+  });
+
+  const visibleComments = hideMyToggle.checked ? comments.filter(c => c.author !== currentUser) : comments;
+
+  // Flatten all events individually so each gets placed in its own day's round
+  const allEvents = [];
 
   for (const r of visibleReviewers) {
-    const isDismissed = r.state === 'DISMISSED';
-    html += `<div class="review-batch${isDismissed ? ' review-batch-dismissed' : ''}">`;
-    const nameHtml = r.url
-      ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">@${escapeHtml(r.login)}</a>`
-      : `@${escapeHtml(r.login)}`;
-    const ago = r.submittedAt ? `<span class="time-ago">${timeAgo(r.submittedAt)}</span>` : '';
-    html += `<div class="review-batch-header">${nameHtml} &nbsp;${escapeHtml(r.label)} ${ago}</div>`;
-    if (r.body.trim()) {
-      html += `<div class="review-batch-body">${truncatableHtml(r.body.trim(), 300)}</div>`;
-    }
+    // Review submission header (state + body) goes in the review's own day
+    allEvents.push({ type: 'review', ts: r.submittedAt || '', login: r.login, label: r.label, state: r.state, url: r.url, body: r.body });
+    // Entire thread goes in the round of the FIRST comment (ci=0), keeping replies with their original
     for (const t of r.threads) {
-      if (t.isResolved && !showClosed) continue;
-      const fileLabel = t.line != null ? `${t.path}:${t.line}` : t.path;
-      html += `<div class="file-group${t.isResolved ? ' thread-resolved' : ''}">`;
-      html += `<div class="file-path">${escapeHtml(fileLabel)}</div>`;
-      for (const c of t.comments) {
+      const authorReplied = t.comments.some(c => c.author === currentUser);
+      if (onlyUnrepliedToggle.checked && authorReplied) continue;
+      const roundTs = t.comments[0]?.createdAt || r.submittedAt || '';
+      for (let ci = 0; ci < t.comments.length; ci++) {
+        allEvents.push({ type: 'thread', ts: roundTs, thread: t, comment: t.comments[ci], isReply: ci > 0 });
+      }
+    }
+  }
+  for (const c of visibleComments) {
+    allEvents.push({ type: 'pr-comment', ts: c.createdAt || '', comment: c });
+  }
+  for (const t of orphanThreads) {
+    const roundTs = t.comments[0]?.createdAt || '';
+    for (let ci = 0; ci < t.comments.length; ci++) {
+      allEvents.push({ type: 'thread', ts: roundTs, thread: t, comment: t.comments[ci], isReply: ci > 0 });
+    }
+  }
+
+  // Group events by calendar day
+  const roundMap = new Map();
+  for (const event of allEvents) {
+    const dateStr = event.ts ? event.ts.slice(0, 10) : 'unknown';
+    if (!roundMap.has(dateStr)) roundMap.set(dateStr, { date: dateStr, earliestTime: '', events: [] });
+    const round = roundMap.get(dateStr);
+    if (event.ts && (!round.earliestTime || event.ts < round.earliestTime)) round.earliestTime = event.ts;
+    round.events.push(event);
+  }
+
+  const rounds = [...roundMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+
+  for (let ri = 0; ri < rounds.length; ri++) {
+    const round = rounds[ri];
+    const isLast = ri >= rounds.length - 2;
+    const dateLabel = round.date !== 'unknown' ? round.date.slice(5).replace('-', '/') : '?';
+    const ago = round.earliestTime ? `<span class="time-ago">${timeAgo(round.earliestTime)}</span>` : '';
+    const collapseIcon = `<span class="batch-collapse-icon">${isLast ? '▼' : '▶'}</span>`;
+
+    // Build per-author comment counts for summary
+    const authorCounts = new Map();
+    for (const ev of round.events) {
+      const login = ev.type === 'thread' ? ev.comment.author
+        : ev.type === 'pr-comment' ? ev.comment.author
+        : (ev.type === 'review' && ev.body.trim()) ? ev.login : null;
+      if (login) authorCounts.set(login, (authorCounts.get(login) || 0) + 1);
+    }
+    const summaryHtml = [...authorCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([login, n]) => `@${escapeHtml(login)} ${n}`)
+      .join(' · ');
+
+    html += `<div class="reviewer-group${isLast ? '' : ' collapsed'}">`;
+    html += `<div class="reviewer-group-header">${collapseIcon}<span class="round-date">${escapeHtml(dateLabel)}</span> ${ago}${summaryHtml ? `<span class="round-summary">${summaryHtml}</span>` : ''}</div>`;
+    html += `<div class="reviewer-group-body">`;
+
+    // Within the round: group thread events by thread object, non-thread events stay flat
+    // Then merge into a time-sorted list for rendering
+    const threadGroupMap = new Map(); // thread -> { firstTs, events[] }
+    const nonThreadEvents = [];
+    for (const event of round.events) {
+      if (event.type === 'thread') {
+        if (!threadGroupMap.has(event.thread)) threadGroupMap.set(event.thread, { thread: event.thread, firstTs: event.ts, events: [] });
+        const tg = threadGroupMap.get(event.thread);
+        if (event.ts < tg.firstTs) tg.firstTs = event.ts;
+        tg.events.push(event);
+      } else {
+        nonThreadEvents.push(event);
+      }
+    }
+
+    const mergedItems = [
+      ...[...threadGroupMap.values()].map(tg => ({ type: 'thread-group', ts: tg.firstTs, tg })),
+      ...nonThreadEvents,
+    ].sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
+
+    for (const item of mergedItems) {
+      if (item.type === 'thread-group') {
+        const { thread, events } = item.tg;
+        const fileLabel = thread.line != null ? `${thread.path}:${thread.line}` : thread.path;
+        html += `<div class="file-group${thread.isResolved ? ' thread-resolved' : ''}">`;
+        html += `<div class="file-path">${escapeHtml(fileLabel)}</div>`;
+        const sortedEvs = events.sort((a, b) => (a.comment.createdAt || '').localeCompare(b.comment.createdAt || ''));
+        for (let evi = 0; evi < sortedEvs.length; evi++) {
+          const ev = sortedEvs[evi];
+          const c = ev.comment;
+          const snip = c.body.replace(/\s+/g, ' ').trim();
+          const cAgo = c.createdAt ? `<span class="time-ago">${timeAgo(c.createdAt)}</span>` : '';
+          const n = ++commentNum;
+          // indent only if there's a preceding comment visible in this same round
+          html += `<div class="thread-comment${evi > 0 ? ' thread-reply' : ''}">${numLink(c.url, n)} <strong>@${escapeHtml(c.author)}</strong>: ${truncatableHtml(snip, 200)} ${cAgo}</div>`;
+        }
+        html += `</div>`;
+      } else if (item.type === 'review') {
+        const isDismissed = item.state === 'DISMISSED';
+        if (isDismissed && !showClosed) continue;
+        // Skip empty COMMENTED submissions — threads are already shown separately
+        if (item.state === 'COMMENTED' && !item.body.trim()) continue;
+        const nameHtml = item.url
+          ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">@${escapeHtml(item.login)}</a>`
+          : `@${escapeHtml(item.login)}`;
+        const rAgo = item.ts ? `<span class="time-ago">${timeAgo(item.ts)}</span>` : '';
+        const rn = item.body.trim() ? ++commentNum : 0;
+        html += `<div class="review-batch${isDismissed ? ' review-batch-dismissed' : ''}">`;
+        html += `<div class="review-batch-header">${nameHtml} &nbsp;${escapeHtml(item.label)} ${rAgo}</div>`;
+        if (item.body.trim()) html += `<div class="review-batch-body">${rn ? numLink(item.url, rn) + ' ' : ''}${truncatableHtml(item.body.trim(), 300)}</div>`;
+        html += `</div>`;
+      } else if (item.type === 'pr-comment') {
+        const c = item.comment;
         const snip = c.body.replace(/\s+/g, ' ').trim();
         const cAgo = c.createdAt ? `<span class="time-ago">${timeAgo(c.createdAt)}</span>` : '';
-        const cName = c.url
-          ? `<a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">@${escapeHtml(c.author)}</a>`
-          : `@${escapeHtml(c.author)}`;
-        html += `<div class="thread-comment"><strong>${cName}</strong>: ${truncatableHtml(snip, 200)} ${cAgo}</div>`;
+        const pn = ++commentNum;
+        html += `<div class="pr-comment-item"><div class="thread-comment">${numLink(c.url, pn)} <strong>@${escapeHtml(c.author)}</strong>: ${truncatableHtml(snip, 200)} ${cAgo}</div></div>`;
       }
-      html += `</div>`;
     }
-    html += `</div>`;
+
+    html += `</div></div>`;
   }
 
   let resolvedCount = 0;
@@ -683,42 +944,12 @@ function renderReviewContent(pr) {
     html += `<p class="muted" style="font-size:.78rem">${resolvedCount} resolved thread${resolvedCount > 1 ? 's' : ''} hidden.</p>`;
   }
 
-  if (comments.length > 0) {
-    html += `<div class="pr-comments-section"><div class="pr-comments-label">PR comments</div>`;
-    for (const c of comments) {
-      const snip = c.body.replace(/\s+/g, ' ').trim();
-      const ago = c.createdAt ? `<span class="time-ago">${timeAgo(c.createdAt)}</span>` : '';
-      const nameHtml = c.url
-        ? `<a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">@${escapeHtml(c.author)}</a>`
-        : `@${escapeHtml(c.author)}`;
-      html += `<div class="thread-comment"><strong>${nameHtml}</strong>: ${truncatableHtml(snip, 200)} ${ago}</div>`;
-    }
-    html += `</div>`;
-  }
-
-  for (const t of orphanThreads) {
-    if (t.isResolved && !showClosed) continue;
-    const fileLabel = t.line != null ? `${t.path}:${t.line}` : t.path;
-    html += `<div class="file-group${t.isResolved ? ' thread-resolved' : ''}">`;
-    html += `<div class="file-path">${escapeHtml(fileLabel)}</div>`;
-    for (const c of t.comments) {
-      const snip = c.body.replace(/\s+/g, ' ').trim();
-      const cAgo = c.createdAt ? `<span class="time-ago">${timeAgo(c.createdAt)}</span>` : '';
-      const cName = c.url
-        ? `<a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">@${escapeHtml(c.author)}</a>`
-        : `@${escapeHtml(c.author)}`;
-      html += `<div class="thread-comment"><strong>${cName}</strong>: ${escapeHtml(snip.slice(0, 200))}${snip.length > 200 ? '…' : ''} ${cAgo}</div>`;
-    }
-    html += `</div>`;
-  }
-
   if (!html) html = '<p class="muted" style="font-size:.85rem">No reviews yet.</p>';
   reviewDialogContent.innerHTML = html;
 }
 
 function showReviewDialog(pr) {
   currentReviewPr = pr;
-  showClosedToggle.checked = false;
   reviewDialogTitle.textContent = `#${pr.number} ${pr.title}`;
   renderReviewContent(pr);
   reviewDialog.showModal();
@@ -773,23 +1004,40 @@ function render() {
       ${orderedCells}
       <td>
         <div><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener" class="pr-title-link">${escapeHtml(pr.title)}</a></div>
-        <div class="repo">${escapeHtml(pr.repo)}</div>
+        <div class="repo"><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener" class="pr-number-link">#${pr.number}</a> ${escapeHtml(pr.repo)}</div>
         ${(() => { const id = extractJiraId(pr.title); const labels = ghLabelHtml(pr.ghLabels); const jira = id ? `<a class="jira-link" href="https://compass-tech.atlassian.net/browse/${escapeHtml(id)}" target="_blank" rel="noopener">${JIRA_ICON}${escapeHtml(id)}</a>` : ''; return (jira || labels) ? `<div class="pr-meta-row">${jira}${labels}</div>` : ''; })()}
-        ${pr.labels.includes('author') ? authorInfo(pr) : ''}
+        ${isNew ? recentEventsHtml(pr, seen[pr.key], currentUser) : ''}
       </td>`;
-    tr.querySelector('.td-number a').addEventListener('click', () => {
+    const eventsDiv = tr.querySelector('.recent-events');
+    if (eventsDiv && eventsDiv.scrollHeight > eventsDiv.clientHeight + 1) {
+      const wrap = eventsDiv.parentElement;
+      const btn = document.createElement('button');
+      btn.className = 'recent-events-expand';
+      btn.textContent = '▼ more';
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        eventsDiv.classList.add('expanded');
+        btn.remove();
+      });
+      wrap.appendChild(btn);
+    }
+    const markRead = () => {
       const s = loadSeen();
-      s[pr.key] = pr.updatedAt;
+      s[pr.key] = { ts: pr.updatedAt, commits: pr.commitCount };
       saveSeen(s);
       tr.querySelector('.dot')?.remove();
-    });
+      tr.querySelector('.recent-events-wrap')?.remove();
+    };
+    tr.querySelector('.pr-number-link').addEventListener('click', markRead);
+    tr.querySelector('.pr-title-link').addEventListener('click', markRead);
     tr.addEventListener('dblclick', () => {
       const s = loadSeen();
-      s[pr.key] = pr.updatedAt;
+      s[pr.key] = { ts: pr.updatedAt, commits: pr.commitCount };
       saveSeen(s);
       tr.querySelector('.dot')?.remove();
+      tr.querySelector('.recent-events-wrap')?.remove();
     });
-    tr.querySelector('.review-label').addEventListener('click', (e) => { e.stopPropagation(); showReviewDialog(pr); });
+    tr.querySelector('.status-label').addEventListener('click', (e) => { e.stopPropagation(); showReviewDialog(pr); });
     tr.querySelector('.owners-tag')?.addEventListener('click', (e) => { e.stopPropagation(); showOwnersDialog(pr); });
     els.rows.appendChild(tr);
   }
@@ -836,7 +1084,7 @@ function autoMarkSelfTriggered(prs) {
     // If no activity event found (e.g. a commit push), fall back to the PR author.
     const triggeredByMe = latest ? latest.author === currentUser : pr.author === currentUser;
     if (triggeredByMe) {
-      seen[pr.key] = pr.updatedAt;
+      seen[pr.key] = { ts: pr.updatedAt, commits: pr.commitCount };
       changed = true;
     }
   }
@@ -854,6 +1102,8 @@ async function load() {
   try {
     const statesParam = activeStateFilter();
     const states = statesParam.length ? statesParam.join(',') : 'open';
+    const meOnly = getMeOnly();
+    lastLoadedMeOnly = meOnly;
     const res = await fetch(`/api/prs?states=${states}&days=${currentDays}&meOnly=${meOnly}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
@@ -876,7 +1126,7 @@ async function load() {
 els.refresh.addEventListener('click', load);
 els.markRead.addEventListener('click', () => {
   const seen = loadSeen();
-  for (const pr of visiblePrs()) seen[pr.key] = pr.updatedAt;
+  for (const pr of visiblePrs()) seen[pr.key] = { ts: pr.updatedAt, commits: pr.commitCount };
   saveSeen(seen);
   render();
 });
@@ -890,13 +1140,7 @@ function isNotifyOn() {
 }
 
 function applyNotifyUI() {
-  if (isNotifyOn()) {
-    notifyToggle.textContent = '🔔 Notify On';
-    notifyToggle.classList.remove('off');
-  } else {
-    notifyToggle.textContent = '🔔 Notify Off';
-    notifyToggle.classList.add('off');
-  }
+  notifyToggle.checked = isNotifyOn();
 }
 
 function sendTestNotification() {
@@ -908,6 +1152,7 @@ async function enableNotifications() {
   if (typeof Notification === 'undefined') { applyNotifyUI(); return; }
   if (Notification.permission === 'denied') {
     alert('Notification permission denied. Click the lock icon in the address bar → Notifications → Allow, then refresh.');
+    applyNotifyUI();
     return;
   }
   if (Notification.permission === 'granted') {
@@ -922,12 +1167,12 @@ async function enableNotifications() {
   if (perm === 'granted') sendTestNotification();
 }
 
-notifyToggle.addEventListener('click', () => {
-  if (isNotifyOn()) {
+notifyToggle.addEventListener('change', () => {
+  if (notifyToggle.checked) {
+    enableNotifications();
+  } else {
     localStorage.setItem(NOTIFY_KEY, 'off');
     applyNotifyUI();
-  } else {
-    enableNotifications();
   }
 });
 
