@@ -69,12 +69,32 @@ function prState(pr) {
   return 'open';
 }
 
+function approverNames(pr) {
+  return (pr.reviewDetail?.reviewers ?? [])
+    .filter(r => r.state === 'APPROVED')
+    .map(r => r.login);
+}
+
+function isFullyApproved(pr) {
+  return pr.review === 'approved' && (!pr.ownersPending || pr.ownersPending.status === 'pass');
+}
+
+function reviewLabel(pr) {
+  if (pr.review !== 'approved') return `<span class="review-label review-${pr.review}">${REVIEW[pr.review]}</span>`;
+  const full = isFullyApproved(pr);
+  const label = full ? '✅ approved' : '🔶 part approved';
+  const cls = full ? 'review-approved' : 'review-part-approved';
+  const approvers = approverNames(pr);
+  const tip = approvers.length ? `Approved by: ${approvers.join(', ')}` : '';
+  return `<span class="review-label ${cls}" title="${escapeHtml(tip)}">${label}</span>`;
+}
+
 const COL_RENDERERS = {
   1: (pr) => `<td><span class="state state-${prState(pr)}">${STATE[prState(pr)]}</span></td>`,
   2: (pr) => `<td class="td-number"><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener">${pr.number}</a></td>`,
   3: (pr) => `<td class="td-author">${escapeHtml(pr.author)}</td>`,
   4: (pr) => `<td>${pr.labels.map(l => `<span class="tag">${PARTICIPATION[l]}</span>`).join('')}</td>`,
-  5: (pr) => `<td class="td-review"><span class="review-label review-${pr.review}">${REVIEW[pr.review]}</span>${ownersTag(pr)}</td>`,
+  5: (pr) => `<td class="td-review">${reviewLabel(pr)}${ownersTag(pr)}</td>`,
   6: (pr) => `<td class="ci-${pr.ci}">${CI[pr.ci]}</td>`,
   7: (pr) => `<td class="td-time">${timeCell(pr.createdAt)}</td>`,
   8: (pr) => `<td class="td-time">${timeCell(pr.updatedAt)}</td>`,
@@ -102,14 +122,20 @@ function savePrefs() {
 }
 
 const REVIEW_PRIORITY = { changes_requested: 0, commented: 1, none: 2, approved: 3 };
+
+function reviewPriority(pr) {
+  if (pr.review === 'approved') return isFullyApproved(pr) ? 4 : 3;
+  return REVIEW_PRIORITY[pr.review] ?? 0;
+}
+
 const SORTERS = {
   number:  { asc: (a, b) => a.number - b.number,           desc: (a, b) => b.number - a.number },
   author:  { asc: (a, b) => a.author.localeCompare(b.author), desc: (a, b) => b.author.localeCompare(a.author) },
   created: { asc: (a, b) => new Date(a.createdAt) - new Date(b.createdAt), desc: (a, b) => new Date(b.createdAt) - new Date(a.createdAt) },
   updated: { asc: (a, b) => new Date(a.updatedAt) - new Date(b.updatedAt), desc: (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt) },
   review:  {
-    desc: (a, b) => (REVIEW_PRIORITY[a.review] - REVIEW_PRIORITY[b.review]) || (new Date(b.updatedAt) - new Date(a.updatedAt)),
-    asc:  (a, b) => (REVIEW_PRIORITY[b.review] - REVIEW_PRIORITY[a.review]) || (new Date(b.updatedAt) - new Date(a.updatedAt)),
+    desc: (a, b) => (reviewPriority(a) - reviewPriority(b)) || (new Date(b.updatedAt) - new Date(a.updatedAt)),
+    asc:  (a, b) => (reviewPriority(b) - reviewPriority(a)) || (new Date(b.updatedAt) - new Date(a.updatedAt)),
   },
 };
 
