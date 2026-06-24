@@ -122,10 +122,23 @@ export function daysAgoISO(days, now = new Date()) {
  * server config — not raw HTTP input — because they are interpolated directly
  * into the search query string and could otherwise inject extra qualifiers.
  */
-export function buildSearchQuery({ user, org, scope, days = 7, qualifier, now = new Date() }) {
-  const parts = ['is:pr', `${qualifier}:${user}`, `org:${org}`];
-  if (scope === 'open') parts.push('is:open');
-  else parts.push(`updated:>=${daysAgoISO(days, now)}`);
+function stateQualifiers(states, days, now) {
+  const hasOpen = states.includes('open') || states.includes('draft');
+  const hasClosed = states.includes('closed');
+  const hasMerged = states.includes('merged');
+  if (!hasClosed && !hasMerged) return ['is:open'];
+  const q = [`updated:>=${daysAgoISO(days, now)}`];
+  if (!hasOpen) {
+    if (hasClosed && hasMerged) q.push('is:closed');
+    else if (hasClosed) q.push('is:closed', 'is:unmerged');
+    else if (hasMerged) q.push('is:merged');
+  }
+  return q;
+}
+
+export function buildSearchQuery({ user, org, scope, states, days = 7, qualifier, now = new Date() }) {
+  const resolved = states ?? (scope === 'open' ? ['open'] : ['open', 'closed', 'merged']);
+  const parts = ['is:pr', `${qualifier}:${user}`, `org:${org}`, ...stateQualifiers(resolved, days, now)];
   return parts.join(' ');
 }
 
@@ -151,15 +164,16 @@ const PR_FIELDS = `
 
 const KEY_FIELDS = `... on PullRequest { number repository { nameWithOwner } }`;
 
-export function buildGraphQLQuery({ user, org, scope, days = 7, now = new Date() }) {
+export function buildGraphQLQuery({ user, org, scope, states, meOnly = false, days = 7, now = new Date() }) {
   const search = (qualifier, fields) =>
-    `search(query: ${JSON.stringify(buildSearchQuery({ user, org, scope, days, qualifier, now }))}, type: ISSUE, first: 50) { nodes { ${fields} } }`;
+    `search(query: ${JSON.stringify(buildSearchQuery({ user, org, scope, states, days, qualifier, now }))}, type: ISSUE, first: 50) { nodes { ${fields} } }`;
+  const mainQualifier = meOnly ? 'author' : 'involves';
   return `query {
-    main: ${search('involves', PR_FIELDS)}
+    main: ${search(mainQualifier, PR_FIELDS)}
     byAuthor: ${search('author', KEY_FIELDS)}
     byAssignee: ${search('assignee', KEY_FIELDS)}
     byMention: ${search('mentions', KEY_FIELDS)}
-    byCommenter: ${search('commenter', KEY_FIELDS)}
+    byReviewer: ${search('reviewed-by', KEY_FIELDS)}
   }`;
 }
 
@@ -226,7 +240,9 @@ export function mergeLabels(prs, labelSets) {
     for (const [label, keys] of Object.entries(labelSets)) {
       if (keys.has(pr.key)) labels.push(label);
     }
-    return { ...pr, labels };
+    // reviewer/mention on your own PR is noise — author role takes precedence
+    const filtered = labels.includes('author') ? labels.filter(l => l !== 'reviewer' && l !== 'mention') : labels;
+    return { ...pr, labels: filtered };
   });
 }
 
@@ -260,7 +276,7 @@ export function parseGraphQLResponse(json) {
     author: setOf('byAuthor'),
     assignee: setOf('byAssignee'),
     mention: setOf('byMention'),
-    commenter: setOf('byCommenter'),
+    reviewer: setOf('byReviewer'),
   };
   return mergeLabels(prs, labelSets);
 }

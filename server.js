@@ -31,6 +31,20 @@ try {
   process.exit(1);
 }
 
+const CACHE_TTL_MS = 60 * 1000; // 1 minute
+const cache = new Map(); // key -> { data, expiresAt }
+
+function cacheGet(key) {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { cache.delete(key); return null; }
+  return entry.data;
+}
+
+function cacheSet(key, data) {
+  cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
 async function serveStatic(req, res) {
   let urlPath = req.url === '/' ? '/index.html' : req.url.split('?')[0];
   // prevent path traversal
@@ -51,18 +65,32 @@ async function serveStatic(req, res) {
 
 async function serveApi(req, res) {
   const url = new URL(req.url, 'http://localhost');
-  const scope = url.searchParams.get('scope') === 'all' ? 'all' : 'open';
+  const VALID_STATES = new Set(['open', 'draft', 'closed', 'merged']);
+  const statesParam = url.searchParams.get('states');
+  const states = statesParam
+    ? statesParam.split(',').filter(s => VALID_STATES.has(s))
+    : null;
+  const meOnly = url.searchParams.get('meOnly') === 'true';
   const daysParam = Number(url.searchParams.get('days'));
   const days = [7, 14, 30, 90].includes(daysParam) ? daysParam : CONFIG.closedDays;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  const cacheKey = `${states?.join(',') ?? ''}|${meOnly}|${days}`;
+  const cached = cacheGet(cacheKey);
+  if (cached) {
+    console.log(`[cache] hit  ${cacheKey}`);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }).end(cached);
+    return;
+  }
   try {
     const prs = await fetchDashboard({
-      token, scope, days,
+      token, states, meOnly, days,
       user: CONFIG.user, org: CONFIG.org,
     });
-    res.writeHead(200).end(JSON.stringify({ prs, scope, user: CONFIG.user, org: CONFIG.org }));
+    const body = JSON.stringify({ prs, user: CONFIG.user, org: CONFIG.org });
+    cacheSet(cacheKey, body);
+    console.log(`[cache] miss ${cacheKey} (${prs.length} PRs)`);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }).end(body);
   } catch (err) {
-    res.writeHead(200).end(JSON.stringify({ error: err.message }));
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }).end(JSON.stringify({ error: err.message }));
   }
 }
 

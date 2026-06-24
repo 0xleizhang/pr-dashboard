@@ -4,17 +4,21 @@ const SEEN_KEY = 'pr-dashboard:seen';
 const PREFS_KEY = 'pr-dashboard:prefs';
 const THEME_KEY = 'pr-dashboard:theme';
 const COL_VISIBILITY_KEY = 'pr-dashboard:col-visibility';
+const COL_ORDER_KEY = 'pr-dashboard:col-order';
 
-const HIDEABLE_COLS = [
-  { idx: 1, label: 'State',         defaultW: 72  },
-  { idx: 2, label: 'PR#',           defaultW: 52  },
-  { idx: 3, label: 'Author',        defaultW: 90  },
-  { idx: 4, label: 'Participation', defaultW: 110 },
-  { idx: 5, label: 'Review',        defaultW: 120 },
-  { idx: 6, label: 'CI',            defaultW: 72  },
-  { idx: 7, label: 'Created',       defaultW: 88  },
-  { idx: 8, label: 'Updated',       defaultW: 88  },
-];
+const DEFAULT_COL_ORDER = [1, 2, 3, 4, 5, 6, 7, 8];
+let currentColOrder = [...DEFAULT_COL_ORDER];
+
+const COL_DEF = {
+  1: { label: 'State',         defaultW: 72  },
+  2: { label: 'PR#',           defaultW: 52  },
+  3: { label: 'Author',        defaultW: 90  },
+  4: { label: 'Participation', defaultW: 110 },
+  5: { label: 'Review',        defaultW: 120 },
+  6: { label: 'CI',            defaultW: 72  },
+  7: { label: 'Created',       defaultW: 88  },
+  8: { label: 'Updated',       defaultW: 88  },
+};
 
 const JIRA_ICON = '<svg width="11" height="11" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-.1em;margin-right:.2em"><path d="M15.78.42L.42 15.78a1.44 1.44 0 000 2.04l15.36 15.36a1.44 1.44 0 002.04 0l15.36-15.36a1.44 1.44 0 000-2.04L17.82.42a1.44 1.44 0 00-2.04 0z" fill="#2684FF"/><path d="M16.8 8.5l-5.5 5.5 2.75 2.75L16.8 14l2.75 2.75L22.3 14z" fill="#0052CC"/></svg>';
 
@@ -53,7 +57,7 @@ const els = {
   subtitle: document.getElementById('subtitle'),
 };
 
-const PARTICIPATION = { author: '🖊 author', assignee: '👤 assignee', mention: '@ mention', commenter: '💬 commenter' };
+const PARTICIPATION = { author: '🖊 author', reviewer: '👁 reviewer', mention: '@ mention', assignee: '👤 assignee' };
 const REVIEW = { approved: '✅ approved', changes_requested: '❌ changes', commented: '💬 commented', none: '⚪ none' };
 const CI = { pass: '🟢 pass', fail: '🔴 fail', pending: '🟡 pending', unknown: '⚪ —' };
 const STATE = { open: 'open', draft: 'draft', closed: 'closed', merged: 'merged' };
@@ -64,6 +68,17 @@ function prState(pr) {
   if (pr.state === 'CLOSED') return 'closed';
   return 'open';
 }
+
+const COL_RENDERERS = {
+  1: (pr) => `<td><span class="state state-${prState(pr)}">${STATE[prState(pr)]}</span></td>`,
+  2: (pr) => `<td class="td-number"><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener">${pr.number}</a></td>`,
+  3: (pr) => `<td class="td-author">${escapeHtml(pr.author)}</td>`,
+  4: (pr) => `<td>${pr.labels.map(l => `<span class="tag">${PARTICIPATION[l]}</span>`).join('')}</td>`,
+  5: (pr) => `<td class="td-review"><span class="review-label review-${pr.review}">${REVIEW[pr.review]}</span>${ownersTag(pr)}</td>`,
+  6: (pr) => `<td class="ci-${pr.ci}">${CI[pr.ci]}</td>`,
+  7: (pr) => `<td class="td-time">${timeCell(pr.createdAt)}</td>`,
+  8: (pr) => `<td class="td-time">${timeCell(pr.updatedAt)}</td>`,
+};
 
 let allPrs = [];
 let currentUser = '';
@@ -86,11 +101,16 @@ function savePrefs() {
   localStorage.setItem(PREFS_KEY, JSON.stringify({ sort: sortState, stateFilter, participation, meOnly, days: currentDays }));
 }
 
+const REVIEW_PRIORITY = { changes_requested: 0, commented: 1, none: 2, approved: 3 };
 const SORTERS = {
   number:  { asc: (a, b) => a.number - b.number,           desc: (a, b) => b.number - a.number },
   author:  { asc: (a, b) => a.author.localeCompare(b.author), desc: (a, b) => b.author.localeCompare(a.author) },
   created: { asc: (a, b) => new Date(a.createdAt) - new Date(b.createdAt), desc: (a, b) => new Date(b.createdAt) - new Date(a.createdAt) },
   updated: { asc: (a, b) => new Date(a.updatedAt) - new Date(b.updatedAt), desc: (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt) },
+  review:  {
+    desc: (a, b) => (REVIEW_PRIORITY[a.review] - REVIEW_PRIORITY[b.review]) || (new Date(b.updatedAt) - new Date(a.updatedAt)),
+    asc:  (a, b) => (REVIEW_PRIORITY[b.review] - REVIEW_PRIORITY[a.review]) || (new Date(b.updatedAt) - new Date(a.updatedAt)),
+  },
 };
 
 let sortState = { col: 'updated', dir: 'desc' };
@@ -98,6 +118,7 @@ let sortState = { col: 'updated', dir: 'desc' };
 const sortCols = {
   'th-number':  'number',
   'th-author':  'author',
+  'th-review':  'review',
   'th-created': 'created',
   'th-updated': 'updated',
 };
@@ -164,50 +185,133 @@ function saveColVisibility(v) {
   localStorage.setItem(COL_VISIBILITY_KEY, JSON.stringify(v));
 }
 
+function loadColOrder() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(COL_ORDER_KEY));
+    if (Array.isArray(saved) && saved.length === DEFAULT_COL_ORDER.length) return saved;
+  } catch {}
+  return [...DEFAULT_COL_ORDER];
+}
+
+function saveColOrder(order) {
+  localStorage.setItem(COL_ORDER_KEY, JSON.stringify(order));
+}
+
 function applyColVisibility(v) {
-  const cols = document.querySelectorAll('#colgroup col');
   const savedWidths = loadColWidths();
-  for (const { idx, defaultW } of HIDEABLE_COLS) {
+  for (const [idxStr, def] of Object.entries(COL_DEF)) {
+    const idx = Number(idxStr);
+    const col = document.querySelector(`#colgroup col[data-col-idx="${idx}"]`);
+    if (!col) continue;
     const hidden = v[idx] === false;
-    if (cols[idx]) {
-      if (hidden) {
-        // visibility:collapse hides cells and collapses width to 0.
-        // Also set width:0 explicitly so table-layout:fixed allocates no space.
-        // Do NOT use display:none on th/td — it shifts col-to-cell alignment.
-        cols[idx].style.width = '0px';
-        cols[idx].style.visibility = 'collapse';
-      } else {
-        cols[idx].style.visibility = '';
-        const w = savedWidths[idx] > 0 ? savedWidths[idx] : defaultW;
-        cols[idx].style.width = w + 'px';
-      }
+    if (hidden) {
+      col.style.width = '0px';
+      col.style.visibility = 'collapse';
+    } else {
+      col.style.visibility = '';
+      const w = savedWidths[idx] > 0 ? savedWidths[idx] : def.defaultW;
+      col.style.width = w + 'px';
     }
   }
-  // PR title column always auto-fills remaining space
-  if (cols[9]) cols[9].style.width = '';
+}
+
+function applyColOrder(order) {
+  currentColOrder = order;
+  const colgroup = document.getElementById('colgroup');
+  const theadRow = document.getElementById('thead-row');
+  const titleCol = colgroup.lastElementChild;
+  const titleTh = theadRow.lastElementChild;
+  // Re-insert col and th elements in the new order (after the fixed dot col/th)
+  for (const idx of [...order].reverse()) {
+    const col = colgroup.querySelector(`col[data-col-idx="${idx}"]`);
+    if (col) colgroup.insertBefore(col, colgroup.children[1]);
+    const th = theadRow.querySelector(`th[data-col-idx="${idx}"]`);
+    if (th) theadRow.insertBefore(th, theadRow.children[1]);
+  }
 }
 
 function setupColumnsDropdown() {
   const btn = document.getElementById('col-visibility-btn');
   const menu = document.getElementById('col-visibility-dropdown');
-  const v = loadColVisibility();
+  let dragIdx = null;
 
-  for (const { idx, label } of HIDEABLE_COLS) {
-    const lbl = document.createElement('label');
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = v[idx] !== false;
-    cb.addEventListener('change', () => {
-      const cur = loadColVisibility();
-      if (cb.checked) delete cur[idx];
-      else cur[idx] = false;
-      saveColVisibility(cur);
-      applyColVisibility(cur);
-    });
-    lbl.appendChild(cb);
-    lbl.appendChild(document.createTextNode(' ' + label));
-    menu.appendChild(lbl);
+  function buildMenu() {
+    menu.innerHTML = '';
+    const v = loadColVisibility();
+    for (const idx of currentColOrder) {
+      const def = COL_DEF[idx];
+      const row = document.createElement('div');
+      row.className = 'col-config-row';
+      row.dataset.idx = idx;
+      row.draggable = true;
+
+      const handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.textContent = '⠿';
+
+      const lbl = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = v[idx] !== false;
+      cb.addEventListener('change', () => {
+        const cur = loadColVisibility();
+        if (cb.checked) delete cur[idx];
+        else cur[idx] = false;
+        saveColVisibility(cur);
+        applyColVisibility(cur);
+      });
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode(' ' + def.label));
+
+      row.appendChild(handle);
+      row.appendChild(lbl);
+      menu.appendChild(row);
+    }
   }
+
+  // Drag listeners attached once via event delegation on the menu container
+  menu.addEventListener('dragstart', (e) => {
+    const row = e.target.closest('.col-config-row');
+    if (!row) return;
+    dragIdx = Number(row.dataset.idx);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  menu.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const row = e.target.closest('.col-config-row');
+    menu.querySelectorAll('.col-config-row').forEach(r => r.classList.remove('drag-over'));
+    if (row) row.classList.add('drag-over');
+  });
+
+  menu.addEventListener('dragleave', (e) => {
+    if (!menu.contains(e.relatedTarget)) {
+      menu.querySelectorAll('.col-config-row').forEach(r => r.classList.remove('drag-over'));
+    }
+  });
+
+  menu.addEventListener('drop', (e) => {
+    e.preventDefault();
+    menu.querySelectorAll('.col-config-row').forEach(r => r.classList.remove('drag-over'));
+    const row = e.target.closest('.col-config-row');
+    if (!row || dragIdx === null) return;
+    const dropIdx = Number(row.dataset.idx);
+    if (dragIdx === dropIdx) { dragIdx = null; return; }
+    const order = [...currentColOrder];
+    const from = order.indexOf(dragIdx);
+    const to = order.indexOf(dropIdx);
+    order.splice(from, 1);
+    order.splice(to, 0, dragIdx);
+    saveColOrder(order);
+    applyColOrder(order);
+    applyColVisibility(loadColVisibility());
+    render();
+    buildMenu();
+    dragIdx = null;
+  });
+
+  buildMenu();
 
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -218,23 +322,27 @@ function setupColumnsDropdown() {
   });
 }
 
-(function initColResize() {
-  const cols = document.querySelectorAll('#colgroup col');
+function initColResize() {
+  const colgroup = document.getElementById('colgroup');
+  const theadRow = document.getElementById('thead-row');
   const saved = loadColWidths();
 
-  // Restore saved widths (skip last col — it always auto-fills)
-  cols.forEach((col, i) => {
-    if (i < cols.length - 1 && saved[i] != null) col.style.width = saved[i] + 'px';
+  // Restore saved widths by semantic index
+  colgroup.querySelectorAll('col[data-col-idx]').forEach(col => {
+    const idx = Number(col.dataset.colIdx);
+    if (saved[idx] != null) col.style.width = saved[idx] + 'px';
   });
 
   // Attach drag logic to every .col-resizer handle
-  document.querySelectorAll('thead th').forEach((th, colIdx) => {
+  theadRow.querySelectorAll('th').forEach((th, pos) => {
     const handle = th.querySelector('.col-resizer');
     if (!handle) return;
-    const col = cols[colIdx];
-    if (!col) return;
 
     handle.addEventListener('mousedown', (e) => {
+      // Resolve col at current position at drag time (survives reorder)
+      const allCols = [...document.querySelectorAll('#colgroup col')];
+      const col = allCols[pos];
+      if (!col) return;
       e.preventDefault();
       handle.classList.add('dragging');
       document.body.classList.add('col-resizing');
@@ -251,12 +359,12 @@ function setupColumnsDropdown() {
         document.body.classList.remove('col-resizing');
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
-        // Save all current widths
-        const widths = {};
-        cols.forEach((c, i) => {
-          if (i === cols.length - 1) return; // skip flex PR title column
+        // Save by semantic index
+        const widths = loadColWidths();
+        document.querySelectorAll('#colgroup col[data-col-idx]').forEach(c => {
+          const idx = Number(c.dataset.colIdx);
           const w = parseInt(c.style.width);
-          if (!isNaN(w) && w > 0) widths[i] = w;
+          if (!isNaN(w) && w > 0) widths[idx] = w;
         });
         saveColWidths(widths);
       }
@@ -265,8 +373,10 @@ function setupColumnsDropdown() {
       document.addEventListener('mouseup', onUp);
     });
   });
-})();
+}
+applyColOrder(loadColOrder());
 applyColVisibility(loadColVisibility());
+initColResize();
 setupColumnsDropdown();
 // ─────────────────────────────────────────────────────────────
 
@@ -300,7 +410,6 @@ activeTypeFilter = () => {
   return checked?.value ?? 'all';
 };
 
-let currentScope = 'open';
 let currentDays = 14;
 let meOnly = true;
 
@@ -324,8 +433,6 @@ let meOnly = true;
     currentDays = p.days;
     document.getElementById('days-select').value = String(currentDays);
   }
-  const stateVals = p.stateFilter ?? ['open'];
-  currentScope = stateVals.some(s => s === 'closed' || s === 'merged') ? 'all' : 'open';
   updateSortUI();
 })();
 
@@ -338,20 +445,14 @@ document.getElementById('days-select').addEventListener('change', (e) => {
 document.getElementById('me-toggle').addEventListener('change', (e) => {
   meOnly = e.target.checked;
   savePrefs();
-  render();
+  load();
 });
 
+let stateLoadTimer = null;
 document.getElementById('state-dropdown').addEventListener('change', () => {
-  const selected = activeStateFilter();
-  const needAll = selected.some(s => s === 'closed' || s === 'merged');
-  const newScope = needAll ? 'all' : 'open';
   savePrefs();
-  if (newScope !== currentScope) {
-    currentScope = newScope;
-    load();
-  } else {
-    render();
-  }
+  clearTimeout(stateLoadTimer);
+  stateLoadTimer = setTimeout(load, 400);
 });
 
 document.getElementById('participation-dropdown').addEventListener('change', () => { savePrefs(); render(); });
@@ -395,12 +496,50 @@ authorAllCheckbox.addEventListener('change', () => {
   }
 });
 
+function makeChip(labelText, value, onRemove) {
+  const chip = document.createElement('span');
+  chip.className = 'filter-chip';
+  chip.innerHTML = `<span class="filter-chip-label">${escapeHtml(labelText)}</span>${escapeHtml(value)}<button class="filter-chip-remove" title="清除">✕</button>`;
+  chip.querySelector('.filter-chip-remove').addEventListener('click', onRemove);
+  return chip;
+}
+
+function updateFilterIndicators() {
+  const bar = document.getElementById('filter-bar');
+  bar.innerHTML = '';
+
+  const stateFilter = activeStateFilter();
+  const isDefaultState = stateFilter.length === 1 && stateFilter[0] === 'open';
+  if (!isDefaultState && stateFilter.length > 0) {
+    bar.appendChild(makeChip('State: ', stateFilter.join(', '), () => {
+      document.querySelectorAll('#state-dropdown input').forEach(i => { i.checked = i.value === 'open'; });
+      savePrefs(); load();
+    }));
+  }
+
+  const typeFilter = activeTypeFilter();
+  if (typeFilter !== 'all') {
+    bar.appendChild(makeChip('Participation: ', typeFilter, () => {
+      document.querySelector('#participation-dropdown input[value="all"]').checked = true;
+      savePrefs(); render();
+    }));
+  }
+
+  const authorFilter = activeAuthorFilter();
+  if (authorFilter.length > 0) {
+    bar.appendChild(makeChip('Author: ', authorFilter.join(', '), () => {
+      authorList.querySelectorAll('input').forEach(i => { i.checked = false; });
+      authorAllCheckbox.checked = true;
+      render();
+    }));
+  }
+}
+
 function visiblePrs() {
   const stateFilter = activeStateFilter();
   const typeFilter = activeTypeFilter();
   const authorFilter = activeAuthorFilter();
   let filtered = allPrs;
-  if (meOnly) filtered = filtered.filter(pr => pr.labels.includes('author'));
   if (stateFilter.length) filtered = filtered.filter(pr => stateFilter.includes(prState(pr)));
   if (typeFilter !== 'all') filtered = filtered.filter(pr => pr.labels.includes(typeFilter));
   if (authorFilter.length) filtered = filtered.filter(pr => authorFilter.includes(pr.author));
@@ -602,19 +741,10 @@ function render() {
     const isNew = isNewActivity(seen[pr.key], pr.updatedAt);
     const tr = document.createElement('tr');
     tr.className = 'pr';
-    const state = prState(pr);
+    const orderedCells = currentColOrder.map(idx => COL_RENDERERS[idx](pr)).join('');
     tr.innerHTML = `
       <td>${isNew ? '<span class="dot new" title="new activity"></span>' : ''}</td>
-      <td><span class="state state-${state}">${STATE[state]}</span></td>
-      <td class="td-number"><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener">${pr.number}</a></td>
-      <td class="td-author">${escapeHtml(pr.author)}</td>
-      <td>${pr.labels.filter(l => !(l === 'commenter' && pr.labels.includes('author'))).map(l => `<span class="tag">${PARTICIPATION[l]}</span>`).join('')}</td>
-      <td class="td-review">
-        <span class="review-label review-${pr.review}">${REVIEW[pr.review]}</span>${ownersTag(pr)}
-      </td>
-      <td class="ci-${pr.ci}">${CI[pr.ci]}</td>
-      <td class="td-time">${timeCell(pr.createdAt)}</td>
-      <td class="td-time">${timeCell(pr.updatedAt)}</td>
+      ${orderedCells}
       <td>
         <div><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener" class="pr-title-link">${escapeHtml(pr.title)}</a></div>
         <div class="repo">${escapeHtml(pr.repo)}</div>
@@ -627,10 +757,17 @@ function render() {
       saveSeen(s);
       tr.querySelector('.dot')?.remove();
     });
+    tr.addEventListener('dblclick', () => {
+      const s = loadSeen();
+      s[pr.key] = pr.updatedAt;
+      saveSeen(s);
+      tr.querySelector('.dot')?.remove();
+    });
     tr.querySelector('.review-label').addEventListener('click', (e) => { e.stopPropagation(); showReviewDialog(pr); });
     tr.querySelector('.owners-tag')?.addEventListener('click', (e) => { e.stopPropagation(); showOwnersDialog(pr); });
     els.rows.appendChild(tr);
   }
+  updateFilterIndicators();
 }
 
 function escapeHtml(s) {
@@ -680,13 +817,18 @@ function autoMarkSelfTriggered(prs) {
   if (changed) saveSeen(seen);
 }
 
+const loadingBar = document.getElementById('loading-bar');
+
 async function load() {
   els.error.style.display = 'none';
+  loadingBar.classList.add('active');
   if (!allPrs.length) {
     els.rows.innerHTML = '<tr><td colspan="10" class="muted">Loading…</td></tr>';
   }
   try {
-    const res = await fetch(`/api/prs?scope=${currentScope}&days=${currentDays}`);
+    const statesParam = activeStateFilter();
+    const states = statesParam.length ? statesParam.join(',') : 'open';
+    const res = await fetch(`/api/prs?states=${states}&days=${currentDays}&meOnly=${meOnly}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     els.subtitle.textContent = `${data.user} @ ${data.org} · ${data.prs.length} PRs`;
@@ -700,6 +842,8 @@ async function load() {
     if (!allPrs.length) els.rows.innerHTML = '';
     els.error.textContent = 'Failed to load PRs: ' + err.message;
     els.error.style.display = 'block';
+  } finally {
+    loadingBar.classList.remove('active');
   }
 }
 
