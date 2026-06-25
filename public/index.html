@@ -281,6 +281,22 @@
     .recent-events.expanded { display: block; overflow: visible; }
     .recent-events-expand { background: none; border: none; padding: 0; font-size: .72rem; color: var(--color-link); cursor: pointer; margin-top: .1rem; display: block; }
     .recent-events-expand:hover { text-decoration: underline; }
+    /* ── Mobile (≤ 600px) ─────────────────────────────────────── */
+    @media (max-width: 600px) {
+      body { padding: .75rem; }
+
+      /* Header: two-row stack */
+      header {
+        flex-wrap: wrap;
+        gap: .5rem;
+      }
+      header h1 { font-size: 1rem; }
+      #subtitle { margin-left: 0; font-size: .75rem; }
+      .controls { margin-left: 0; width: 100%; justify-content: flex-start; }
+      #days-select, #refresh, #settings-btn { display: none; }
+      #me-seg { width: 100%; }
+      #me-seg .seg-btn { flex: 1; text-align: center; }
+    }
   </style>
 </head>
 <body>
