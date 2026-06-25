@@ -642,7 +642,7 @@ function updateFilterIndicators() {
   const isDefaultState = stateFilter.length === 2 && stateFilter.includes('open') && stateFilter.includes('draft');
   if (!isDefaultState && stateFilter.length > 0) {
     bar.appendChild(makeChip('State: ', stateFilter.join(', '), () => {
-      document.querySelectorAll('#state-dropdown input').forEach(i => { i.checked = i.value === 'open'; });
+      document.querySelectorAll('#state-dropdown input').forEach(i => { i.checked = i.value === 'open' || i.value === 'draft'; });
       savePrefs(); load();
     }));
   }
