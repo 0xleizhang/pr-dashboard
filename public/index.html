@@ -296,6 +296,60 @@
       #days-select, #refresh, #settings-btn { display: none; }
       #me-seg { width: 100%; }
       #me-seg .seg-btn { flex: 1; text-align: center; }
+
+      /* Table → card list */
+      #main-table { display: block; }
+      #main-table thead { display: none; }
+      #main-table tbody { display: block; }
+
+      tr.pr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .3rem;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        margin-bottom: .6rem;
+        padding: .65rem .75rem;
+        cursor: default;
+      }
+      tr.pr:hover { background: none; }
+
+      /* All td: block by default, then selectively show */
+      #main-table td {
+        display: none;
+        overflow: visible;
+        white-space: normal;
+        text-overflow: unset;
+        padding: 0;
+        border: none;
+      }
+
+      /* PR title td (last child) — full width, on top */
+      #main-table td:last-child {
+        display: block;
+        width: 100%;
+        order: 0;
+        margin-bottom: .25rem;
+      }
+
+      /* Meta row: state · status · author · updated */
+      #main-table .td-state,
+      #main-table .td-status,
+      #main-table .td-author,
+      #main-table .td-updated {
+        display: inline-flex;
+        align-items: center;
+        order: 1;
+      }
+      #main-table .td-author { font-size: .8rem; color: var(--color-muted); }
+      #main-table .td-updated { font-size: .75rem; color: var(--color-muted); }
+
+      /* Column resizer: hidden on mobile */
+      .col-resizer { display: none; }
+
+      /* Filter bar */
+      .filter-bar-wrap { flex-direction: column; align-items: flex-start; gap: .4rem; }
     }
   </style>
 </head>
