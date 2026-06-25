@@ -160,6 +160,11 @@ const sortCols = {
   'th-updated': 'updated',
 };
 
+const MOBILE_SORT_BTNS = {
+  'mobile-sort-status':  'status',
+  'mobile-sort-created': 'created',
+};
+
 function updateSortUI() {
   for (const [id, col] of Object.entries(sortCols)) {
     const th = document.getElementById(id);
@@ -169,6 +174,16 @@ function updateSortUI() {
     } else {
       dir.textContent = '';
     }
+  }
+  for (const [id, col] of Object.entries(MOBILE_SORT_BTNS)) {
+    const btn = document.getElementById(id);
+    if (!btn) continue;
+    const isActive = sortState.col === col;
+    btn.classList.toggle('active', isActive);
+    const label = col === 'status' ? 'Status' : 'Created';
+    btn.textContent = isActive
+      ? label + (sortState.dir === 'desc' ? ' ↓' : ' ↑')
+      : label;
   }
 }
 
@@ -186,6 +201,19 @@ for (const [id, col] of Object.entries(sortCols)) {
 }
 
 updateSortUI();
+
+for (const [id, col] of Object.entries(MOBILE_SORT_BTNS)) {
+  document.getElementById(id).addEventListener('click', () => {
+    if (sortState.col === col) {
+      sortState.dir = sortState.dir === 'desc' ? 'asc' : 'desc';
+    } else {
+      sortState = { col, dir: 'desc' };
+    }
+    updateSortUI();
+    savePrefs();
+    render();
+  });
+}
 
 function setupDropdown(arrowId, dropdownId) {
   const arrow = document.getElementById(arrowId);

@@ -369,6 +369,27 @@
         align-items: flex-start;
         gap: .5rem;
       }
+
+      /* Mobile sort bar */
+      #mobile-sort-bar {
+        display: flex;
+        gap: .4rem;
+        width: 100%;
+      }
+      #mobile-sort-bar button {
+        font-size: .75rem;
+        padding: .2rem .55rem;
+        border: 1px solid var(--color-border);
+        border-radius: 6px;
+        background: var(--color-surface);
+        color: var(--color-muted);
+        cursor: pointer;
+      }
+      #mobile-sort-bar button.active {
+        background: var(--color-link);
+        color: #fff;
+        border-color: var(--color-link);
+      }
     }
   </style>
 </head>
