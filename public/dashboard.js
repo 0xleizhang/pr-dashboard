@@ -95,12 +95,12 @@ function statusLabel(pr) {
 }
 
 const COL_RENDERERS = {
-  1: (pr) => `<td><span class="state state-${prState(pr)}">${STATE[prState(pr)]}</span></td>`,
+  1: (pr) => `<td class="td-state"><span class="state state-${prState(pr)}">${STATE[prState(pr)]}</span></td>`,
   3: (pr) => `<td class="td-author">${escapeHtml(pr.author)}</td>`,
-  4: (pr) => `<td>${pr.labels.map(l => `<span class="tag">${PARTICIPATION[l]}</span>`).join('')}</td>`,
+  4: (pr) => `<td class="td-participation">${pr.labels.map(l => `<span class="tag">${PARTICIPATION[l]}</span>`).join('')}</td>`,
   5: (pr) => `<td class="td-status">${statusLabel(pr)}${ownersTag(pr)}</td>`,
-  7: (pr) => `<td class="td-time">${timeCell(pr.createdAt)}</td>`,
-  8: (pr) => `<td class="td-time">${timeCell(pr.updatedAt)}</td>`,
+  7: (pr) => `<td class="td-time td-created">${timeCell(pr.createdAt)}</td>`,
+  8: (pr) => `<td class="td-time td-updated">${timeCell(pr.updatedAt)}</td>`,
 };
 
 let allPrs = [];
@@ -1000,7 +1000,7 @@ function render() {
     tr.className = 'pr';
     const orderedCells = currentColOrder.map(idx => COL_RENDERERS[idx](pr)).join('');
     tr.innerHTML = `
-      <td>${isNew ? '<span class="dot new" title="new activity"></span>' : ''}</td>
+      <td class="td-dot">${isNew ? '<span class="dot new" title="new activity"></span>' : ''}</td>
       ${orderedCells}
       <td>
         <div><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener" class="pr-title-link">${escapeHtml(pr.title)}</a></div>
