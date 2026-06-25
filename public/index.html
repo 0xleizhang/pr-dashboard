@@ -350,6 +350,21 @@
 
       /* Filter bar */
       .filter-bar-wrap { flex-direction: column; align-items: flex-start; gap: .4rem; }
+
+      /* Dialogs: full-width, taller */
+      dialog {
+        min-width: auto;
+        width: 95vw;
+        max-height: 92vh;
+        padding: .9rem 1rem;
+      }
+
+      /* Review dialog toolbar: stack toggles vertically */
+      .dialog-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .5rem;
+      }
     }
   </style>
 </head>
