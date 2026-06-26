@@ -1032,7 +1032,7 @@ function render() {
       ${orderedCells}
       <td class="td-title">
         <div><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener" class="pr-title-link">${escapeHtml(pr.title)}</a></div>
-        <div class="repo"><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener" class="pr-number-link">#${pr.number}</a> ${escapeHtml(pr.repo)}</div>
+        <div class="repo"><a href="${escapeHtml(pr.url)}" target="_blank" rel="noopener" class="pr-number-link">#${pr.number}</a> ${escapeHtml(pr.repo)}${pr.branch ? ` <span class="branch">${escapeHtml(pr.branch)}</span>` : ''}</div>
         ${(() => { const id = extractJiraId(pr.title); const labels = ghLabelHtml(pr.ghLabels); const jira = id ? `<a class="jira-link" href="https://compass-tech.atlassian.net/browse/${escapeHtml(id)}" target="_blank" rel="noopener">${JIRA_ICON}${escapeHtml(id)}</a>` : ''; return (jira || labels) ? `<div class="pr-meta-row">${jira}${labels}</div>` : ''; })()}
         ${isNew ? recentEventsHtml(pr, seen[pr.key], currentUser) : ''}
       </td>`;

@@ -228,7 +228,7 @@ export function mapPRStatus(n, { ci, reviewDetail, ownersPending, committedDate 
 
 const PR_FIELDS = `
   ... on PullRequest {
-    id number title url createdAt updatedAt isDraft state reviewDecision
+    id number title url createdAt updatedAt isDraft state reviewDecision headRefName
     author { login }
     repository { nameWithOwner }
     labels(first: 20) { nodes { name color } }
@@ -347,6 +347,7 @@ export function parseGraphQLResponse(json) {
       title: n.title,
       url: n.url,
       repo: n.repository.nameWithOwner,
+      branch: n.headRefName ?? null,
       createdAt: n.createdAt,
       updatedAt: n.updatedAt,
       author: n.author?.login ?? 'unknown',
